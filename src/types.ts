@@ -15,6 +15,11 @@ export interface CellFormat {
   decimals?: number
 }
 
+export interface CellNote {
+  text: string
+  updatedAt: number
+}
+
 export interface CellData {
   value: string
   format?: CellFormat
@@ -66,6 +71,16 @@ export interface DataValidationRule {
   allowBlank?: boolean
 }
 
+export type PageOrientation = 'portrait' | 'landscape'
+export type PagePaperSize = 'letter' | 'a4'
+export type PageMargins = 'normal' | 'narrow' | 'wide'
+export interface PageLayoutSettings {
+  orientation: PageOrientation
+  paperSize: PagePaperSize
+  margins: PageMargins
+  printGridlines: boolean
+}
+
 export interface SheetData {
   id: string
   name: string
@@ -81,6 +96,9 @@ export interface SheetData {
   namedRanges?: Record<string, SheetFilterRange>
   dataValidations?: DataValidationRule[]
   tables?: SheetTable[]
+  notes?: Record<string, CellNote>
+  protected?: boolean
+  pageLayout?: PageLayoutSettings
 }
 
 export interface WorkbookData {
