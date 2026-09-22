@@ -597,17 +597,28 @@ export default function App() {
   function endEdit(save = true) {
     if (save) {
       const validation = dataValidationForCell(sheet, point.row, point.col)
-      const value = draft.trim()
-      const valid = !validation ||
-        (validation.allowBlank && value === '') ||
-        validation.options.some((option) => option === draft)
+      const valid = validationAllowsValue(validation, draft)
 
-      if (!valid) {
-        setNotice(`Choose one of: ${validation?.options.join(', ')}`)
-        setEditing(false)
-        setDraft('')
-        window.requestAnimationFrame(() => gridRef.current?.focus())
-        return
+      if (!valid && validation) {
+        const description = validationDescription(validation)
+        const style = validation.errorStyle || 'stop'
+
+        if (style === 'stop') {
+          setNotice(description)
+          setEditing(false)
+          setDraft('')
+          window.requestAnimationFrame(() => gridRef.current?.focus())
+          return
+        }
+
+        if (style === 'warning' && !window.confirm(description + '. Keep this value anyway?')) {
+          setEditing(false)
+          setDraft('')
+          window.requestAnimationFrame(() => gridRef.current?.focus())
+          return
+        }
+
+        if (style === 'information') setNotice(description)
       }
 
       setValue(point, draft)
