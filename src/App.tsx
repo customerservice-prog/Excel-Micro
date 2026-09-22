@@ -4,12 +4,14 @@ import { displayValue } from './formulas'
 import {
   COLS,
   DEFAULT_COLUMN_WIDTH,
+  DEFAULT_ROW_HEIGHT,
   ROWS,
   cellKey,
   colToName,
   createBlankSheet,
   getCell,
   getColumnWidth,
+  getRowHeight,
   getSelectedPoints,
   normalizeSelection,
   parseCsv,
@@ -17,6 +19,7 @@ import {
   pointToAddress,
   selectionToAddress,
   shiftFormulaReferences,
+  shiftFormulaForStructure,
   toCsv,
 } from './spreadsheet'
 import type { CellData, CellFormat, NumberFormat, Point, Selection, SheetData, WorkbookData } from './types'
@@ -129,6 +132,7 @@ export default function App() {
   const fileRef = useRef<HTMLInputElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const columnResizeRef = useRef<{ col: number; startX: number; startWidth: number } | null>(null)
+  const rowResizeRef = useRef<{ row: number; startY: number; startHeight: number } | null>(null)
 
   const sheet = useMemo(
     () => book.sheets.find((item) => item.id === book.activeSheetId) || book.sheets[0],
@@ -160,25 +164,49 @@ export default function App() {
 
   useEffect(() => {
     const onMove = (event: MouseEvent) => {
-      const resize = columnResizeRef.current
-      if (!resize) return
+      const columnResize = columnResizeRef.current
+      const rowResize = rowResizeRef.current
 
-      const width = Math.max(48, Math.min(360, resize.startWidth + event.clientX - resize.startX))
+      if (columnResize) {
+        const width = Math.max(
+          48,
+          Math.min(360, columnResize.startWidth + event.clientX - columnResize.startX),
+        )
 
-      setBook((current) => {
-        const next = structuredClone(current)
-        const target = next.sheets.find((item) => item.id === next.activeSheetId) || next.sheets[0]
-        target.columnWidths ||= {}
-        target.columnWidths[String(resize.col)] = Math.round(width)
-        next.updatedAt = Date.now()
-        return next
-      })
+        setBook((current) => {
+          const next = structuredClone(current)
+          const target = next.sheets.find((item) => item.id === next.activeSheetId) || next.sheets[0]
+          target.columnWidths ||= {}
+          target.columnWidths[String(columnResize.col)] = Math.round(width)
+          next.updatedAt = Date.now()
+          return next
+        })
+      }
+
+      if (rowResize) {
+        const height = Math.max(
+          20,
+          Math.min(180, rowResize.startHeight + event.clientY - rowResize.startY),
+        )
+
+        setBook((current) => {
+          const next = structuredClone(current)
+          const target = next.sheets.find((item) => item.id === next.activeSheetId) || next.sheets[0]
+          target.rowHeights ||= {}
+          target.rowHeights[String(rowResize.row)] = Math.round(height)
+          next.updatedAt = Date.now()
+          return next
+        })
+      }
     }
 
     const onUp = () => {
       if (columnResizeRef.current) setNotice('Column width updated')
+      if (rowResizeRef.current) setNotice('Row height updated')
       columnResizeRef.current = null
+      rowResizeRef.current = null
       document.body.classList.remove('is-column-resizing')
+      document.body.classList.remove('is-row-resizing')
     }
 
     window.addEventListener('mousemove', onMove)
@@ -764,6 +792,144 @@ export default function App() {
     })
   }
 
+  function beginRowResize(event: React.MouseEvent, row: number) {
+    event.preventDefault()
+    event.stopPropagation()
+    setHistory((items) => [...items, book].slice(-75))
+    setFuture([])
+    rowResizeRef.current = {
+      row,
+      startY: event.clientY,
+      startHeight: getRowHeight(sheet, row),
+    }
+    document.body.classList.add('is-row-resizing')
+  }
+
+  function autoFitRow(row: number) {
+    let height = DEFAULT_ROW_HEIGHT
+
+    for (let col = 0; col < COLS; col += 1) {
+      const data = getCell(sheet, row, col)
+      const value = formatted(data, sheet)
+      const fontSize = data.format?.fontSize || 11
+      let lines = 1
+
+      if (data.format?.wrap && value) {
+        const charsPerLine = Math.max(4, Math.floor((getColumnWidth(sheet, col) - 10) / Math.max(5.5, fontSize * 0.58)))
+        lines = Math.max(1, Math.ceil(value.length / charsPerLine))
+      }
+
+      height = Math.max(height, 8 + lines * Math.max(15, fontSize * 1.45))
+    }
+
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.rowHeights ||= {}
+      s.rowHeights[String(row)] = Math.round(Math.min(180, height))
+    })
+
+    setNotice(`AutoFit row ${row + 1}`)
+  }
+
+  function adjustRowHeight(delta: number) {
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.rowHeights ||= {}
+
+      for (let row = range.top; row <= range.bottom; row += 1) {
+        const height = s.rowHeights[String(row)] ?? DEFAULT_ROW_HEIGHT
+        s.rowHeights[String(row)] = Math.max(20, Math.min(180, height + delta))
+      }
+    })
+  }
+
+  function resetRowHeight() {
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.rowHeights ||= {}
+
+      for (let row = range.top; row <= range.bottom; row += 1) {
+        delete s.rowHeights[String(row)]
+      }
+    })
+  }
+
+  function restructureSheet(s: SheetData, axis: 'row' | 'col', index: number, delta: 1 | -1) {
+    const moved: Record<string, CellData> = {}
+
+    Object.entries(s.cells).forEach(([key, data]) => {
+      let [row, col] = key.split(':').map(Number)
+
+      if (axis === 'row') {
+        if (delta === -1 && row === index) return
+        if (delta === 1 && row >= index) row += 1
+        if (delta === -1 && row > index) row -= 1
+      } else {
+        if (delta === -1 && col === index) return
+        if (delta === 1 && col >= index) col += 1
+        if (delta === -1 && col > index) col -= 1
+      }
+
+      if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return
+
+      moved[cellKey(row, col)] = {
+        ...structuredClone(data),
+        value: shiftFormulaForStructure(data.value, axis, index, delta),
+      }
+    })
+
+    s.cells = moved
+
+    const shiftDimensionMap = (
+      source: Record<string, number> | undefined,
+      max: number,
+    ) => {
+      const result: Record<string, number> = {}
+
+      Object.entries(source || {}).forEach(([key, value]) => {
+        let position = Number(key)
+
+        if (delta === -1 && position === index) return
+        if (delta === 1 && position >= index) position += 1
+        if (delta === -1 && position > index) position -= 1
+        if (position >= 0 && position < max) result[String(position)] = value
+      })
+
+      return result
+    }
+
+    if (axis === 'row') s.rowHeights = shiftDimensionMap(s.rowHeights, ROWS)
+    else s.columnWidths = shiftDimensionMap(s.columnWidths, COLS)
+  }
+
+  function insertRow() {
+    const index = range.top
+    mutate((next) => restructureSheet(activeSheet(next), 'row', index, 1))
+    selectPoint({ row: index, col: point.col })
+    setNotice(`Inserted row ${index + 1}`)
+  }
+
+  function deleteRow() {
+    const index = range.top
+    mutate((next) => restructureSheet(activeSheet(next), 'row', index, -1))
+    selectPoint({ row: Math.min(index, ROWS - 1), col: point.col })
+    setNotice(`Deleted row ${index + 1}`)
+  }
+
+  function insertColumn() {
+    const index = range.left
+    mutate((next) => restructureSheet(activeSheet(next), 'col', index, 1))
+    selectPoint({ row: point.row, col: index })
+    setNotice(`Inserted column ${colToName(index)}`)
+  }
+
+  function deleteColumn() {
+    const index = range.left
+    mutate((next) => restructureSheet(activeSheet(next), 'col', index, -1))
+    selectPoint({ row: point.row, col: Math.min(index, COLS - 1) })
+    setNotice(`Deleted column ${colToName(index)}`)
+  }
+
   function toggleSheetView(key: 'showGridlines' | 'freezeTopRow' | 'freezeFirstColumn') {
     mutate((next) => {
       const s = activeSheet(next)
@@ -953,9 +1119,19 @@ export default function App() {
     return `46px ${widths.join(' ')}`
   }, [sheet, zoom])
 
+  const rowTemplate = useMemo(() => {
+    const heights = Array.from({ length: ROWS }, (_, row) => {
+      const height = getRowHeight(sheet, row) * zoom / 100
+      return `${Math.max(20, Math.round(height))}px`
+    })
+    const headerHeight = Math.max(20, Math.round(DEFAULT_ROW_HEIGHT * zoom / 100))
+    return `${headerHeight}px ${heights.join(' ')}`
+  }, [sheet, zoom])
+
   const gridStyle = {
-    '--row-height': `${Math.max(20, Math.round(25 * zoom / 100))}px`,
+    '--row-height': `${Math.max(20, Math.round(DEFAULT_ROW_HEIGHT * zoom / 100))}px`,
     gridTemplateColumns: columnTemplate,
+    gridTemplateRows: rowTemplate,
     fontSize: `${Math.max(10, 12 * zoom / 100)}px`,
   } as CSSProperties
 
@@ -1103,6 +1279,13 @@ export default function App() {
               <button className="compact" title="Increase decimals" onClick={() => adjustDecimals(1)}>→.00</button>
             </Group>
 
+            <Group name="Cells">
+              <RibbonButton icon="＋R" label="Insert row" onClick={insertRow} />
+              <RibbonButton icon="＋C" label="Insert column" onClick={insertColumn} />
+              <RibbonButton icon="−R" label="Delete row" onClick={deleteRow} />
+              <RibbonButton icon="−C" label="Delete column" onClick={deleteColumn} />
+            </Group>
+
             <Group name="Editing">
               <RibbonButton icon="⌕" label="Find" onClick={() => setFindOpen(true)} />
               <RibbonButton icon="⌫" label="Clear values" onClick={clearSelected} />
@@ -1204,6 +1387,12 @@ export default function App() {
               <button className="compact" onClick={() => adjustColumnWidth(-12)}>Narrow</button>
               <button className="compact" onClick={() => adjustColumnWidth(12)}>Widen</button>
               <button className="compact" onClick={resetColumnWidth}>Reset</button>
+            </Group>
+
+            <Group name="Row height">
+              <button className="compact" onClick={() => adjustRowHeight(-6)}>Shorter</button>
+              <button className="compact" onClick={() => adjustRowHeight(6)}>Taller</button>
+              <button className="compact" onClick={resetRowHeight}>Reset</button>
             </Group>
 
             <Group name="Zoom">
@@ -1315,6 +1504,16 @@ export default function App() {
                   }}
                 >
                   {row + 1}
+                  <span
+                    className="row-resizer"
+                    title="Drag to resize • Double-click to AutoFit"
+                    onMouseDown={(e) => beginRowResize(e, row)}
+                    onDoubleClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      autoFitRow(row)
+                    }}
+                  />
                 </div>
 
                 {Array.from({ length: COLS }, (_, col) => {
