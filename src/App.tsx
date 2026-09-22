@@ -36,10 +36,17 @@ import type {
 } from './types'
 
 const STORAGE_KEY = 'excel-micro-workbook-v1'
+const VERSION_STORAGE_KEY = 'excel-micro-version-history-v1'
 type Tab = 'Home' | 'Insert' | 'Formulas' | 'Data' | 'Page Layout' | 'Review' | 'View'
 type ContextMenuState = { x: number; y: number; kind: 'cell' | 'row' | 'col'; index: number }
 type FilterEditorState = { col: number; operator: FilterOperator; value: string }
 type ChartType = 'bar' | 'line' | 'pie'
+type VersionSnapshot = {
+  id: string
+  savedAt: number
+  label: string
+  workbook: WorkbookData
+}
 
 function newWorkbook(): WorkbookData {
   const sheet = createBlankSheet(1)
@@ -60,6 +67,17 @@ function loadWorkbook(): WorkbookData {
     return parsed.sheets?.length ? parsed : newWorkbook()
   } catch {
     return newWorkbook()
+  }
+}
+
+function loadVersions(): VersionSnapshot[] {
+  try {
+    const raw = localStorage.getItem(VERSION_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as VersionSnapshot[]
+    return Array.isArray(parsed) ? parsed.slice(0, 12) : []
+  } catch {
+    return []
   }
 }
 
@@ -230,6 +248,8 @@ export default function App() {
   const [dragging, setDragging] = useState(false)
   const [history, setHistory] = useState<WorkbookData[]>([])
   const [future, setFuture] = useState<WorkbookData[]>([])
+  const [versions, setVersions] = useState<VersionSnapshot[]>(loadVersions)
+  const [versionOpen, setVersionOpen] = useState(false)
   const [find, setFind] = useState('')
   const [findOpen, setFindOpen] = useState(false)
   const [chartOpen, setChartOpen] = useState(false)
@@ -314,6 +334,10 @@ export default function App() {
   useEffect(() => {
     setNameBox(selectionToAddress(selection))
   }, [selection])
+
+  useEffect(() => {
+    localStorage.setItem(VERSION_STORAGE_KEY, JSON.stringify(versions.slice(0, 12)))
+  }, [versions])
 
   useEffect(() => {
     const stop = () => setDragging(false)
@@ -1489,6 +1513,29 @@ export default function App() {
     setNotice(sheet.protected ? 'Worksheet unprotected' : 'Worksheet protected')
   }
 
+  function saveVersion(label = 'Manual version') {
+    const snapshot: VersionSnapshot = {
+      id: crypto.randomUUID(),
+      savedAt: Date.now(),
+      label,
+      workbook: structuredClone(book),
+    }
+    setVersions((current) => [snapshot, ...current].slice(0, 12))
+    setNotice('Workbook version saved')
+  }
+
+  function restoreVersion(snapshot: VersionSnapshot) {
+    setHistory((items) => [...items, book].slice(-75))
+    setFuture([])
+    setBook(structuredClone(snapshot.workbook))
+    setVersionOpen(false)
+    setNotice(`Restored version from ${new Date(snapshot.savedAt).toLocaleString()}`)
+  }
+
+  function deleteVersion(id: string) {
+    setVersions((current) => current.filter((version) => version.id !== id))
+  }
+
   function updatePageLayout(patch: Partial<NonNullable<SheetData['pageLayout']>>) {
     mutate((next) => {
       const s = activeSheet(next)
@@ -2255,6 +2302,10 @@ export default function App() {
               <RibbonButton icon="↓" label="MIN" onClick={() => smartFunction('MIN')} />
               <RibbonButton icon="?" label="IF" onClick={() => beginEdit('=IF(')} />
               <RibbonButton icon=".0" label="ROUND" onClick={() => beginEdit('=ROUND(')} />
+              <RibbonButton icon="#" label="COUNTIF" onClick={() => beginEdit('=COUNTIF(')} />
+              <RibbonButton icon="Σ?" label="SUMIF" onClick={() => beginEdit('=SUMIF(')} />
+              <RibbonButton icon="X" label="XLOOKUP" onClick={() => beginEdit('=XLOOKUP(')} />
+              <RibbonButton icon="!" label="IFERROR" onClick={() => beginEdit('=IFERROR(')} />
             </Group>
 
             <Group name="Defined names">
@@ -2269,6 +2320,8 @@ export default function App() {
               <span>=IF(SUM(A1:A5)&gt;100,"Over","OK")</span>
               <span>=ROUND(A1*B1,2)</span>
               <span>=SUM(SALES)</span>
+              <span>=COUNTIF(A:A,"Paid")</span>
+              <span>=XLOOKUP(A2,IDs,Names,"Not found")</span>
             </div>
           </>
         )}
@@ -2366,6 +2419,12 @@ export default function App() {
                 primary={Boolean(sheet.protected)}
                 onClick={toggleProtection}
               />
+            </Group>
+
+            <Group name="Version history">
+              <RibbonButton icon="◴" label="Save version" onClick={() => saveVersion()} />
+              <RibbonButton icon="↺" label="History" onClick={() => setVersionOpen(true)} />
+              <span className="review-count">{versions.length} saved</span>
             </Group>
           </>
         )}
@@ -3158,6 +3217,48 @@ export default function App() {
               <span className="spacer" />
               <button className="secondary" onClick={() => setConditionalOpen(false)}>Cancel</button>
               <button className="primary-action" onClick={addConditionalFormat}>Add rule</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {versionOpen && (
+        <div className="overlay panel-overlay" onMouseDown={() => setVersionOpen(false)}>
+          <div className="rule-card version-card" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="rule-card-header">
+              <div>
+                <span className="eyebrow">VERSION HISTORY</span>
+                <h2>Workbook versions</h2>
+                <p>Restore a local snapshot of the entire workbook.</p>
+              </div>
+              <button onClick={() => setVersionOpen(false)}>×</button>
+            </div>
+
+            <div className="version-toolbar">
+              <button className="primary-action" onClick={() => saveVersion()}>Save current version</button>
+              <span>Up to 12 versions are kept in this browser.</span>
+            </div>
+
+            <div className="version-list">
+              {versions.length === 0 ? (
+                <div className="empty-rules">No saved versions yet.</div>
+              ) : versions.map((version) => (
+                <div className="version-item" key={version.id}>
+                  <div>
+                    <strong>{version.label}</strong>
+                    <span>{new Date(version.savedAt).toLocaleString()}</span>
+                    <small>{version.workbook.sheets.length} sheet{version.workbook.sheets.length === 1 ? '' : 's'} · {version.workbook.title}</small>
+                  </div>
+                  <button onClick={() => restoreVersion(version)}>Restore</button>
+                  <button className="remove-version" onClick={() => deleteVersion(version.id)}>Delete</button>
+                </div>
+              ))}
+            </div>
+
+            <div className="rule-actions">
+              <span className="named-range-tip">Versions are stored locally in this browser.</span>
+              <span className="spacer" />
+              <button className="secondary" onClick={() => setVersionOpen(false)}>Done</button>
             </div>
           </div>
         </div>
