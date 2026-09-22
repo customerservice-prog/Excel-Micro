@@ -1941,6 +1941,49 @@ export default function App() {
     }, true)
   }
 
+  function setPrintAreaFromSelection() {
+    const selected = normalizeSelection(selection)
+    updatePageLayout({
+      printArea: {
+        top: selected.top,
+        bottom: selected.bottom,
+        left: selected.left,
+        right: selected.right,
+      },
+    })
+    setNotice('Print area set to ' + selectionToAddress(selection))
+  }
+
+  function clearPrintArea() {
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.pageLayout = {
+        orientation: 'portrait',
+        paperSize: 'letter',
+        margins: 'normal',
+        printGridlines: true,
+        scalePercent: 100,
+        headerText: '',
+        footerText: '',
+        ...(s.pageLayout || {}),
+        printArea: undefined,
+      }
+    }, true)
+    setNotice('Print area cleared')
+  }
+
+  function editPrintHeader() {
+    const value = window.prompt('Print header text', sheet.pageLayout?.headerText || book.title)
+    if (value === null) return
+    updatePageLayout({ headerText: value })
+  }
+
+  function editPrintFooter() {
+    const value = window.prompt('Print footer text', sheet.pageLayout?.footerText || sheet.name)
+    if (value === null) return
+    updatePageLayout({ footerText: value })
+  }
+
   function printSheet() {
     window.requestAnimationFrame(() => window.print())
   }
@@ -2511,14 +2554,17 @@ export default function App() {
     fontSize: `${Math.max(10, 12 * zoom / 100)}px`,
   } as CSSProperties
 
-  const printBounds = usedRange()
   const pageLayout = {
     orientation: 'portrait' as const,
     paperSize: 'letter' as const,
     margins: 'normal' as const,
     printGridlines: true,
+    scalePercent: 100,
+    headerText: '',
+    footerText: '',
     ...(sheet.pageLayout || {}),
   }
+  const printBounds = pageLayout.printArea || usedRange()
   const printMargin = pageLayout.margins === 'narrow'
     ? '0.25in'
     : pageLayout.margins === 'wide'
@@ -2846,6 +2892,22 @@ export default function App() {
               </select>
             </Group>
 
+            <Group name="Print area">
+              <RibbonButton icon="▣" label="Set print area" onClick={setPrintAreaFromSelection} />
+              <RibbonButton icon="×" label="Clear print area" onClick={clearPrintArea} />
+            </Group>
+
+            <Group name="Scale">
+              <select
+                value={sheet.pageLayout?.scalePercent || 100}
+                onChange={(e) => updatePageLayout({ scalePercent: Number(e.target.value) })}
+              >
+                {[50, 60, 70, 80, 90, 100, 110, 125, 150, 175, 200].map((value) => (
+                  <option key={value} value={value}>{value}%</option>
+                ))}
+              </select>
+            </Group>
+
             <Group name="Sheet options">
               <button
                 className={sheet.pageLayout?.printGridlines === false ? '' : 'on'}
@@ -2853,6 +2915,8 @@ export default function App() {
               >
                 Print gridlines
               </button>
+              <button onClick={editPrintHeader}>Header</button>
+              <button onClick={editPrintFooter}>Footer</button>
             </Group>
 
             <Group name="Print">
@@ -3318,7 +3382,11 @@ export default function App() {
       </footer>
 
       <style>{`@media print { @page { size: ${printPageSize}; margin: ${printMargin}; } }`}</style>
-      <div className={'print-area ' + (pageLayout.printGridlines ? 'print-gridlines' : '')}>
+      <div
+        className={'print-area ' + (pageLayout.printGridlines ? 'print-gridlines' : '')}
+        style={{ fontSize: `${10 * ((pageLayout.scalePercent || 100) / 100)}px` }}
+      >
+        <div className="print-header-text">{pageLayout.headerText || book.title}</div>
         <div className="print-title">{book.title} — {sheet.name}</div>
         <table>
           <tbody>
@@ -3351,6 +3419,7 @@ export default function App() {
             })}
           </tbody>
         </table>
+        <div className="print-footer-text">{pageLayout.footerText || sheet.name}</div>
       </div>
 
       {findOpen && (
