@@ -569,6 +569,129 @@ export default function App() {
     window.requestAnimationFrame(action)
   }
 
+  function applyBorders(mode: 'all' | 'outside' | 'bottom' | 'none') {
+    const selected = normalizeSelection(selection)
+    const color = cell.format?.borderColor || '#808080'
+
+    mutate((next) => {
+      const s = activeSheet(next)
+
+      for (let row = selected.top; row <= selected.bottom; row += 1) {
+        for (let col = selected.left; col <= selected.right; col += 1) {
+          const key = cellKey(row, col)
+          const old = s.cells[key] || { value: '' }
+          const format = { ...(old.format || {}) }
+
+          if (mode === 'none') {
+            format.borderTop = false
+            format.borderRight = false
+            format.borderBottom = false
+            format.borderLeft = false
+          } else if (mode === 'all') {
+            format.borderTop = true
+            format.borderRight = true
+            format.borderBottom = true
+            format.borderLeft = true
+          } else if (mode === 'outside') {
+            format.borderTop = row === selected.top
+            format.borderBottom = row === selected.bottom
+            format.borderLeft = col === selected.left
+            format.borderRight = col === selected.right
+          } else {
+            format.borderBottom = true
+          }
+
+          format.borderColor = color
+          s.cells[key] = { ...old, format }
+        }
+      }
+    })
+  }
+
+  function mergeSelection() {
+    const selected = normalizeSelection(selection)
+    if (selected.top === selected.bottom && selected.left === selected.right) {
+      setNotice('Select two or more cells to merge')
+      return
+    }
+
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.merges ||= []
+      s.merges = s.merges.filter((merge) => (
+        merge.bottom < selected.top ||
+        merge.top > selected.bottom ||
+        merge.right < selected.left ||
+        merge.left > selected.right
+      ))
+
+      const originKey = cellKey(selected.top, selected.left)
+      const origin = s.cells[originKey] || { value: '' }
+
+      for (let row = selected.top; row <= selected.bottom; row += 1) {
+        for (let col = selected.left; col <= selected.right; col += 1) {
+          if (row === selected.top && col === selected.left) continue
+          const key = cellKey(row, col)
+          const existing = s.cells[key]
+          if (!existing) continue
+          if (existing.format || existing.hyperlink) s.cells[key] = { ...existing, value: '' }
+          else delete s.cells[key]
+        }
+      }
+
+      s.cells[originKey] = origin
+      s.merges.push({
+        id: crypto.randomUUID(),
+        top: selected.top,
+        bottom: selected.bottom,
+        left: selected.left,
+        right: selected.right,
+      })
+    })
+
+    selectPoint({ row: selected.top, col: selected.left })
+    setNotice('Cells merged')
+  }
+
+  function unmergeSelection() {
+    const selected = normalizeSelection(selection)
+    const matches = (sheet.merges || []).filter((merge) => !(
+      merge.bottom < selected.top ||
+      merge.top > selected.bottom ||
+      merge.right < selected.left ||
+      merge.left > selected.right
+    ))
+
+    if (!matches.length) {
+      setNotice('No merged cells in the selection')
+      return
+    }
+
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.merges = (s.merges || []).filter((merge) => !matches.some((match) => match.id === merge.id))
+    })
+    setNotice('Cells unmerged')
+  }
+
+  function openHyperlink(target: Point = point) {
+    setHyperlinkTarget(target)
+    setHyperlinkDraft(getCell(sheet, target.row, target.col).hyperlink || 'https://')
+    setHyperlinkOpen(true)
+  }
+
+  function saveHyperlink() {
+    const url = hyperlinkDraft.trim()
+    mutate((next) => {
+      const s = activeSheet(next)
+      const key = cellKey(hyperlinkTarget.row, hyperlinkTarget.col)
+      const old = s.cells[key] || { value: '' }
+      s.cells[key] = { ...old, hyperlink: url || undefined }
+    })
+    setHyperlinkOpen(false)
+    setNotice(url ? 'Hyperlink added' : 'Hyperlink removed')
+  }
+
   function applyFormat(patch: Partial<CellFormat>) {
     const points = getSelectedPoints(selection)
 
