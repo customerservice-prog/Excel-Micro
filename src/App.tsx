@@ -401,6 +401,69 @@ function validationDescription(rule: DataValidationRule) {
   return 'Enter a ' + label + ' less than ' + (rule.minimum || '')
 }
 
+type TrackMetrics = {
+  sizes: number[]
+  offsets: number[]
+  total: number
+}
+
+function buildTrackMetrics(sizes: number[], leading: number): TrackMetrics {
+  const offsets: number[] = []
+  let cursor = leading
+  sizes.forEach((size, index) => {
+    offsets[index] = cursor
+    cursor += size
+  })
+  return { sizes, offsets, total: cursor }
+}
+
+function visibleTrackIndexes(
+  metrics: TrackMetrics,
+  viewportStart: number,
+  viewportSize: number,
+  overscan: number,
+) {
+  const { offsets, sizes } = metrics
+  if (!sizes.length) return []
+
+  const targetStart = Math.max(0, viewportStart)
+  const targetEnd = targetStart + Math.max(1, viewportSize)
+
+  let low = 0
+  let high = sizes.length - 1
+  let first = sizes.length - 1
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2)
+    if (offsets[middle] + sizes[middle] >= targetStart) {
+      first = middle
+      high = middle - 1
+    } else {
+      low = middle + 1
+    }
+  }
+
+  low = first
+  high = sizes.length - 1
+  let last = first
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2)
+    if (offsets[middle] <= targetEnd) {
+      last = middle
+      low = middle + 1
+    } else {
+      high = middle - 1
+    }
+  }
+
+  const start = Math.max(0, first - overscan)
+  const end = Math.min(sizes.length - 1, last + overscan)
+  const result: number[] = []
+  for (let index = start; index <= end; index += 1) {
+    if (sizes[index] > 0) result.push(index)
+  }
+  return result
+}
+
 function uniqueSheetName(sheets: SheetData[], base: string) {
   const existing = new Set(sheets.map((sheet) => sheet.name.toLowerCase()))
   let candidate = base
@@ -479,6 +542,12 @@ export default function App() {
   const [hyperlinkOpen, setHyperlinkOpen] = useState(false)
   const [hyperlinkDraft, setHyperlinkDraft] = useState('')
   const [hyperlinkTarget, setHyperlinkTarget] = useState<Point>({ row: 0, col: 0 })
+  const [viewport, setViewport] = useState({
+    scrollTop: 0,
+    scrollLeft: 0,
+    width: 1200,
+    height: 700,
+  })
   const fileRef = useRef<HTMLInputElement>(null)
   const imageRef = useRef<HTMLInputElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
