@@ -3149,6 +3149,19 @@ export default function App() {
                         e.preventDefault()
                         if (editing) endEdit(true)
                         const p = { row, col }
+
+                        if (formatPainter && !sheet.protected) {
+                          const copiedFormat = structuredClone(formatPainter)
+                          mutate((next) => {
+                            const s = activeSheet(next)
+                            const key = cellKey(row, col)
+                            const old = s.cells[key] || { value: '' }
+                            s.cells[key] = { ...old, format: copiedFormat }
+                          })
+                          setFormatPainter(null)
+                          setNotice('Format applied')
+                        }
+
                         setDragging(true)
                         setSelection((current) => ({
                           anchor: e.shiftKey ? current.anchor : p,
