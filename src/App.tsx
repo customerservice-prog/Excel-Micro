@@ -151,6 +151,17 @@ function conditionalStyleForCell(sheet: SheetData, row: number, col: number, val
   return { background, color }
 }
 
+function dataValidationForCell(sheet: SheetData, row: number, col: number) {
+  const rules = sheet.dataValidations || []
+  for (let index = rules.length - 1; index >= 0; index -= 1) {
+    const rule = rules[index]
+    if (row >= rule.top && row <= rule.bottom && col >= rule.left && col <= rule.right) {
+      return rule
+    }
+  }
+  return undefined
+}
+
 function uniqueSheetName(sheets: SheetData[], base: string) {
   const existing = new Set(sheets.map((sheet) => sheet.name.toLowerCase()))
   let candidate = base
@@ -192,6 +203,16 @@ export default function App() {
   const [conditionalColor, setConditionalColor] = useState('#7f6000')
   const [namedRangeOpen, setNamedRangeOpen] = useState(false)
   const [namedRangeName, setNamedRangeName] = useState('')
+  const [validationOpen, setValidationOpen] = useState(false)
+  const [validationOptions, setValidationOptions] = useState('Pending\nPaid\nCanceled')
+  const [validationAllowBlank, setValidationAllowBlank] = useState(true)
+  const [validationPicker, setValidationPicker] = useState<{
+    row: number
+    col: number
+    x: number
+    y: number
+    ruleId: string
+  } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const columnResizeRef = useRef<{ col: number; startX: number; startWidth: number } | null>(null)
@@ -307,7 +328,10 @@ export default function App() {
   }, [notice])
 
   useEffect(() => {
-    const close = () => setContextMenu(null)
+    const close = () => {
+      setContextMenu(null)
+      setValidationPicker(null)
+    }
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setContextMenu(null)
     }
@@ -355,7 +379,24 @@ export default function App() {
   }
 
   function endEdit(save = true) {
-    if (save) setValue(point, draft)
+    if (save) {
+      const validation = dataValidationForCell(sheet, point.row, point.col)
+      const value = draft.trim()
+      const valid = !validation ||
+        (validation.allowBlank && value === '') ||
+        validation.options.some((option) => option === draft)
+
+      if (!valid) {
+        setNotice(`Choose one of: ${validation?.options.join(', ')}`)
+        setEditing(false)
+        setDraft('')
+        window.requestAnimationFrame(() => gridRef.current?.focus())
+        return
+      }
+
+      setValue(point, draft)
+    }
+
     setEditing(false)
     setDraft('')
     window.requestAnimationFrame(() => gridRef.current?.focus())
@@ -1162,6 +1203,40 @@ export default function App() {
       }),
     )
 
+    s.dataValidations = (s.dataValidations || []).flatMap((rule) => {
+      const nextRule = { ...rule }
+
+      if (axis === 'row') {
+        if (delta === 1 && index <= nextRule.top) {
+          nextRule.top += 1
+          nextRule.bottom += 1
+        } else if (delta === 1 && index <= nextRule.bottom) {
+          nextRule.bottom = Math.min(ROWS - 1, nextRule.bottom + 1)
+        } else if (delta === -1 && index < nextRule.top) {
+          nextRule.top = Math.max(0, nextRule.top - 1)
+          nextRule.bottom = Math.max(nextRule.top, nextRule.bottom - 1)
+        } else if (delta === -1 && index <= nextRule.bottom) {
+          if (nextRule.top === nextRule.bottom) return []
+          nextRule.bottom -= 1
+        }
+      } else {
+        if (delta === 1 && index <= nextRule.left) {
+          nextRule.left += 1
+          nextRule.right += 1
+        } else if (delta === 1 && index <= nextRule.right) {
+          nextRule.right = Math.min(COLS - 1, nextRule.right + 1)
+        } else if (delta === -1 && index < nextRule.left) {
+          nextRule.left = Math.max(0, nextRule.left - 1)
+          nextRule.right = Math.max(nextRule.left, nextRule.right - 1)
+        } else if (delta === -1 && index <= nextRule.right) {
+          if (nextRule.left === nextRule.right) return []
+          nextRule.right -= 1
+        }
+      }
+
+      return [nextRule]
+    })
+
     s.conditionalFormats = (s.conditionalFormats || []).flatMap((rule) => {
       const nextRule = { ...rule }
 
@@ -1319,6 +1394,58 @@ export default function App() {
       activeSheet(next).filters = {}
     })
     setNotice('Filter conditions cleared')
+  }
+
+  function addDataValidation() {
+    const options = Array.from(new Set(
+      validationOptions
+        .split(/[\n,]/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ))
+
+    if (!options.length) {
+      setNotice('Add at least one dropdown option')
+      return
+    }
+
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.dataValidations ||= []
+      s.dataValidations.push({
+        id: crypto.randomUUID(),
+        top: range.top,
+        bottom: range.bottom,
+        left: range.left,
+        right: range.right,
+        options,
+        allowBlank: validationAllowBlank,
+      })
+    })
+
+    setValidationOpen(false)
+    setNotice('Dropdown validation added')
+  }
+
+  function clearDataValidation() {
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.dataValidations = (s.dataValidations || []).filter((rule) => (
+        rule.bottom < range.top ||
+        rule.top > range.bottom ||
+        rule.right < range.left ||
+        rule.left > range.right
+      ))
+    })
+    setValidationPicker(null)
+    setNotice('Validation cleared from selection')
+  }
+
+  function chooseValidationValue(value: string) {
+    if (!validationPicker) return
+    setValue({ row: validationPicker.row, col: validationPicker.col }, value)
+    selectPoint({ row: validationPicker.row, col: validationPicker.col })
+    setValidationPicker(null)
   }
 
   function addConditionalFormat() {
@@ -1779,6 +1906,11 @@ export default function App() {
               <RibbonButton icon="×" label="Clear filters" onClick={clearAllFilters} />
             </Group>
 
+            <Group name="Data validation">
+              <RibbonButton icon="▼" label="Dropdown" onClick={() => setValidationOpen(true)} />
+              <RibbonButton icon="×" label="Clear validation" onClick={clearDataValidation} />
+            </Group>
+
             <Group name="Conditional formatting">
               <RibbonButton icon="▦" label="New rule" onClick={() => setConditionalOpen(true)} />
               <RibbonButton icon="×" label="Clear rules" onClick={clearConditionalFormats} />
@@ -1989,6 +2121,7 @@ export default function App() {
                     col <= sheet.filterRange.right
                   )
                   const filterActive = Boolean(sheet.filters?.[String(col)])
+                  const validationRule = dataValidationForCell(sheet, row, col)
 
                   return (
                     <div
@@ -1999,7 +2132,8 @@ export default function App() {
                         (selected ? 'selected ' : '') +
                         (active ? 'active ' : '') +
                         frozenClass +
-                        (data.format?.wrap ? ' wrap ' : '')
+                        (data.format?.wrap ? ' wrap ' : '') +
+                        (validationRule ? ' validation-cell ' : '')
                       }
                       style={{
                         fontWeight: data.format?.bold ? 700 : 400,
@@ -2050,6 +2184,30 @@ export default function App() {
                         />
                       ) : (
                         <span>{display}</span>
+                      )}
+                      {validationRule && !editing && (
+                        <button
+                          className={'cell-validation-button ' + (filterHeader ? 'with-filter' : '')}
+                          title="Choose an allowed value"
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            setValidationPicker({
+                              row,
+                              col,
+                              x: Math.min(window.innerWidth - 190, rect.right - 170),
+                              y: Math.min(window.innerHeight - 220, rect.bottom + 3),
+                              ruleId: validationRule.id,
+                            })
+                          }}
+                        >
+                          ▼
+                        </button>
                       )}
                       {filterHeader && (
                         <button
@@ -2154,6 +2312,73 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {validationOpen && (
+        <div className="overlay panel-overlay" onMouseDown={() => setValidationOpen(false)}>
+          <div className="rule-card validation-card" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="rule-card-header">
+              <div>
+                <span className="eyebrow">DATA VALIDATION</span>
+                <h2>Dropdown list</h2>
+                <p>Limit {selectionToAddress(selection)} to approved values.</p>
+              </div>
+              <button onClick={() => setValidationOpen(false)}>×</button>
+            </div>
+
+            <div className="validation-form">
+              <label>
+                Allowed values
+                <textarea
+                  autoFocus
+                  value={validationOptions}
+                  onChange={(e) => setValidationOptions(e.target.value)}
+                  placeholder={'Pending\nPaid\nCanceled'}
+                />
+                <span>Enter one value per line, or separate values with commas.</span>
+              </label>
+
+              <label className="validation-checkbox">
+                <input
+                  type="checkbox"
+                  checked={validationAllowBlank}
+                  onChange={(e) => setValidationAllowBlank(e.target.checked)}
+                />
+                Allow blank cells
+              </label>
+            </div>
+
+            <div className="rule-actions">
+              <button className="secondary" onClick={clearDataValidation}>Clear validation from selection</button>
+              <span className="spacer" />
+              <button className="secondary" onClick={() => setValidationOpen(false)}>Cancel</button>
+              <button className="primary-action" onClick={addDataValidation}>Apply dropdown</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {validationPicker && (() => {
+        const rule = (sheet.dataValidations || []).find((item) => item.id === validationPicker.ruleId)
+        if (!rule) return null
+        return (
+          <div
+            className="validation-picker"
+            style={{ left: validationPicker.x, top: validationPicker.y }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {rule.allowBlank && (
+              <button onClick={() => chooseValidationValue('')}>
+                <span className="validation-blank">Blank</span>
+              </button>
+            )}
+            {rule.options.map((option) => (
+              <button key={option} onClick={() => chooseValidationValue(option)}>
+                {option}
+              </button>
+            ))}
+          </div>
+        )
+      })()}
 
       {filterEditor && (
         <div className="overlay panel-overlay" onMouseDown={() => setFilterEditor(null)}>
