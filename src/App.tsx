@@ -939,8 +939,11 @@ export default function App() {
         const key = cellKey(p.row, p.col)
         const old = s.cells[key]
         if (!old) return
-        if (old.format) s.cells[key] = { ...old, value: '' }
-        else delete s.cells[key]
+        if (old.format || old.hyperlink || old.checkbox) {
+          s.cells[key] = { ...old, value: old.checkbox ? 'FALSE' : '' }
+        } else {
+          delete s.cells[key]
+        }
       })
     })
   }
@@ -955,8 +958,15 @@ export default function App() {
         const key = cellKey(p.row, p.col)
         const old = s.cells[key]
         if (!old) return
-        if (old.value || old.hyperlink) s.cells[key] = { value: old.value, hyperlink: old.hyperlink }
-        else delete s.cells[key]
+        if (old.value || old.hyperlink || old.checkbox) {
+          s.cells[key] = {
+            value: old.value,
+            hyperlink: old.hyperlink,
+            checkbox: old.checkbox,
+          }
+        } else {
+          delete s.cells[key]
+        }
       })
     })
   }
@@ -3659,6 +3669,25 @@ export default function App() {
                             if (e.key === 'Escape') endEdit(false)
                           }}
                         />
+                      ) : data.checkbox ? (
+                        <label
+                          className="cell-checkbox"
+                          title="Checkbox"
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={data.value.toUpperCase() === 'TRUE'}
+                            disabled={Boolean(sheet.protected)}
+                            onChange={(e) => {
+                              e.stopPropagation()
+                              setValue({ row, col }, e.target.checked ? 'TRUE' : 'FALSE')
+                            }}
+                          />
+                        </label>
                       ) : data.hyperlink ? (
                         <a
                           className="cell-hyperlink"
@@ -3732,6 +3761,43 @@ export default function App() {
                     </div>
                   )
                 })}
+              </div>
+            ))}
+
+            {(sheet.objects || []).map((object) => (
+              <div
+                className={'sheet-object sheet-object-' + object.type}
+                key={object.id}
+                style={{
+                  gridColumnStart: object.col + 2,
+                  gridRowStart: object.row + 2,
+                  width: `${Math.max(40, object.width * zoom / 100)}px`,
+                  height: `${Math.max(30, object.height * zoom / 100)}px`,
+                  background: object.fill,
+                  borderColor: object.border,
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onDoubleClick={() => editSheetObject(object.id)}
+                title={object.type === 'image' ? 'Image' : 'Double-click to edit'}
+              >
+                {object.type === 'image' && object.src ? (
+                  <img src={object.src} alt="" />
+                ) : (
+                  <div className="sheet-object-text">{object.text}</div>
+                )}
+                {!sheet.protected && (
+                  <button
+                    className="sheet-object-delete"
+                    title="Delete object"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      removeSheetObject(object.id)
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -4549,6 +4615,18 @@ export default function App() {
       )}
 
       {notice && <div className="toast">{notice}</div>}
+
+      <input
+        ref={imageRef}
+        className="hidden"
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (file) handleImageFile(file)
+        }}
+      />
 
       <input
         ref={fileRef}
