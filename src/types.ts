@@ -25,6 +25,7 @@ export interface SheetData {
   name: string
   cells: Record<string, CellData>
   columnWidths?: Record<string, number>
+  rowHeights?: Record<string, number>
   showGridlines?: boolean
   freezeTopRow?: boolean
   freezeFirstColumn?: boolean
