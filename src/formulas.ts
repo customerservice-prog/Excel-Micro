@@ -371,6 +371,17 @@ class Parser {
         return this.cellValue(identifier)
       }
 
+      const namedRange = this.sheet.namedRanges?.[upper]
+      if (namedRange) {
+        const values: FormulaValue[] = []
+        for (let row = namedRange.top; row <= namedRange.bottom; row += 1) {
+          for (let col = namedRange.left; col <= namedRange.right; col += 1) {
+            values.push(this.cellByPoint(row, col))
+          }
+        }
+        return values
+      }
+
       return 0
     }
 
