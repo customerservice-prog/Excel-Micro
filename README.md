@@ -2,7 +2,7 @@
 
 Excel Micro is a browser-based spreadsheet workspace built from scratch as a modern, lightweight Excel-style application.
 
-## Excel Micro 0.5
+## Excel Micro 0.6
 
 The current release is a real working spreadsheet core, not a static spreadsheet mockup.
 
@@ -163,6 +163,17 @@ Right-click directly where you are working:
 - Named ranges shift automatically with row/column insertion and deletion
 - Manage and remove names from the workbook UI
 
+### Data validation and dropdown cells
+
+- Apply dropdown validation to any selected range
+- Define allowed values with one item per line or comma-separated
+- Optional blank values
+- In-cell dropdown picker
+- Invalid manually typed values are rejected
+- Invalid pasted values are rejected without overwriting valid cells
+- Validation ranges shift with inserted/deleted rows and columns
+- Clear validation from the selected range
+
 ### File compatibility
 
 - Import `.xlsx`
@@ -246,16 +257,15 @@ GitHub Actions runs on every push to `main` and on pull requests. CI:
 
 ## Next major phases
 
-Excel Micro 0.5 is still local-first. The next major product layers are:
+Excel Micro 0.6 is still local-first. The next major product layers are:
 
 1. Accounts and cloud workbooks
 2. Share links and permissions
 3. Real-time multiplayer editing
 4. Comments and version history
 5. Structured table objects
-6. Data validation and dropdown cells
-7. More Excel-compatible formulas
-8. Advanced chart types
-9. Pivot tables
-10. Print and page layout
-11. Large-sheet virtualization and worker-based calculations
+6. More Excel-compatible formulas
+7. Advanced chart types
+8. Pivot tables
+9. Print and page layout
+10. Large-sheet virtualization and worker-based calculations
