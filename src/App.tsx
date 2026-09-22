@@ -915,6 +915,7 @@ export default function App() {
       .map((row) => row.split('\t'))
 
     let rejected = 0
+    let warned = 0
 
     mutate((next) => {
       const s = activeSheet(next)
@@ -926,13 +927,15 @@ export default function App() {
           if (row >= ROWS || col >= COLS) return
 
           const validation = dataValidationForCell(s, row, col)
-          const valid = !validation ||
-            (validation.allowBlank && value.trim() === '') ||
-            validation.options.some((option) => option === value)
+          const valid = validationAllowsValue(validation, value)
 
-          if (!valid) {
-            rejected += 1
-            return
+          if (!valid && validation) {
+            const style = validation.errorStyle || 'stop'
+            if (style === 'stop') {
+              rejected += 1
+              return
+            }
+            warned += 1
           }
 
           const key = cellKey(row, col)
@@ -946,6 +949,8 @@ export default function App() {
 
     if (rejected > 0) {
       setNotice(`${rejected} pasted value${rejected === 1 ? '' : 's'} rejected by validation`)
+    } else if (warned > 0) {
+      setNotice(`${warned} pasted value${warned === 1 ? '' : 's'} did not meet validation rules`)
     }
   }
 
