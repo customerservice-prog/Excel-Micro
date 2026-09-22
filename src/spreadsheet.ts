@@ -125,6 +125,14 @@ export function createBlankSheet(index = 1): SheetData {
     namedRanges: {},
     dataValidations: [],
     tables: [],
+    notes: {},
+    protected: false,
+    pageLayout: {
+      orientation: 'portrait',
+      paperSize: 'letter',
+      margins: 'normal',
+      printGridlines: true,
+    },
   }
 }
 
