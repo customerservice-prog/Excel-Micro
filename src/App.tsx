@@ -511,6 +511,37 @@ export default function App() {
     return hidden
   }, [sheet])
 
+  const conditionalMetrics = useMemo(() => {
+    const result: Record<string, ConditionalMetric> = {}
+
+    for (const rule of sheet.conditionalFormats || []) {
+      const kind = rule.kind || 'cell'
+      if (kind === 'cell') continue
+
+      const numbers: number[] = []
+      const counts = new Map<string, number>()
+
+      for (let row = rule.top; row <= rule.bottom; row += 1) {
+        for (let col = rule.left; col <= rule.right; col += 1) {
+          const value = displayValue(getCell(sheet, row, col).value, sheet, book.sheets)
+          const normalized = value.trim().toLowerCase()
+          counts.set(normalized, (counts.get(normalized) || 0) + 1)
+
+          const numeric = Number(value.replace(/[$,%]/g, ''))
+          if (Number.isFinite(numeric)) numbers.push(numeric)
+        }
+      }
+
+      result[rule.id] = {
+        min: numbers.length ? Math.min(...numbers) : 0,
+        max: numbers.length ? Math.max(...numbers) : 0,
+        counts,
+      }
+    }
+
+    return result
+  }, [book.sheets, sheet])
+
   useEffect(() => {
     setSaveStatus('Saving…')
     const timer = window.setTimeout(() => {
