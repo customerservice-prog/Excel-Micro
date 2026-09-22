@@ -507,28 +507,29 @@ class Parser {
     return value.replace(/\$/g, '').toUpperCase()
   }
 
-  private cellValue(address: string): FormulaValue {
+  private cellValue(address: string, targetSheet = this.sheet): FormulaValue {
     const normalized = this.normalizedAddress(address)
     const point = parseAddress(normalized)
     if (!point) return 0
 
-    const key = cellKey(point.row, point.col)
-    if (this.stack.has(key)) return '#CIRC!'
+    const cellAddress = cellKey(point.row, point.col)
+    const stackKey = targetSheet.id + ':' + cellAddress
+    if (this.stack.has(stackKey)) return '#CIRC!'
 
-    const raw = this.sheet.cells[key]?.value ?? ''
+    const raw = targetSheet.cells[cellAddress]?.value ?? ''
     if (!raw) return ''
 
     if (raw.startsWith('=')) {
       const nextStack = new Set(this.stack)
-      nextStack.add(key)
-      return evaluateFormula(raw, this.sheet, nextStack)
+      nextStack.add(stackKey)
+      return evaluateFormula(raw, targetSheet, nextStack, this.sheets)
     }
 
     const numeric = Number(raw.replace(/[$,%]/g, ''))
     return Number.isFinite(numeric) && raw.trim() !== '' ? numeric : raw
   }
 
-  private rangeValues(startAddress: string, endAddress: string): FormulaValue[] {
+  private rangeValues(startAddress: string, endAddress: string, targetSheet = this.sheet): FormulaValue[] {
     const start = parseAddress(this.normalizedAddress(startAddress))
     const end = parseAddress(this.normalizedAddress(endAddress))
     if (!start || !end) return []
@@ -537,24 +538,25 @@ class Parser {
 
     for (let row = Math.min(start.row, end.row); row <= Math.max(start.row, end.row); row += 1) {
       for (let col = Math.min(start.col, end.col); col <= Math.max(start.col, end.col); col += 1) {
-        values.push(this.cellByPoint(row, col))
+        values.push(this.cellByPoint(row, col, targetSheet))
       }
     }
 
     return values
   }
 
-  private cellByPoint(row: number, col: number): FormulaValue {
-    const key = cellKey(row, col)
-    if (this.stack.has(key)) return '#CIRC!'
+  private cellByPoint(row: number, col: number, targetSheet = this.sheet): FormulaValue {
+    const cellAddress = cellKey(row, col)
+    const stackKey = targetSheet.id + ':' + cellAddress
+    if (this.stack.has(stackKey)) return '#CIRC!'
 
-    const raw = this.sheet.cells[key]?.value ?? ''
+    const raw = targetSheet.cells[cellAddress]?.value ?? ''
     if (!raw) return ''
 
     if (raw.startsWith('=')) {
       const nextStack = new Set(this.stack)
-      nextStack.add(key)
-      return evaluateFormula(raw, this.sheet, nextStack)
+      nextStack.add(stackKey)
+      return evaluateFormula(raw, targetSheet, nextStack, this.sheets)
     }
 
     const numeric = Number(raw.replace(/[$,%]/g, ''))
@@ -802,12 +804,13 @@ export function evaluateFormula(
   raw: string,
   sheet: SheetData,
   stack = new Set<string>(),
+  sheets: SheetData[] = [sheet],
 ): FormulaResult {
   if (!raw.startsWith('=')) return raw
 
   try {
     const tokens = new Lexer(raw.slice(1)).tokenize()
-    const result = new Parser(tokens, sheet, stack).parse()
+    const result = new Parser(tokens, sheet, stack, sheets).parse()
 
     if (Array.isArray(result)) {
       const first = result[0]
@@ -821,10 +824,10 @@ export function evaluateFormula(
   }
 }
 
-export function displayValue(raw: string, sheet: SheetData): string {
+export function displayValue(raw: string, sheet: SheetData, sheets: SheetData[] = [sheet]): string {
   if (!raw.startsWith('=')) return raw
 
-  const result = evaluateFormula(raw, sheet)
+  const result = evaluateFormula(raw, sheet, new Set<string>(), sheets)
 
   if (typeof result === 'boolean') return result ? 'TRUE' : 'FALSE'
 
