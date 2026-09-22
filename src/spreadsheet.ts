@@ -2,6 +2,7 @@ import type { CellData, Point, Selection, SheetData } from './types'
 
 export const ROWS = 200
 export const COLS = 52
+export const DEFAULT_COLUMN_WIDTH = 106
 
 export const cellKey = (row: number, col: number) => `${row}:${col}`
 
@@ -44,6 +45,22 @@ export function normalizeSelection(selection: Selection) {
   }
 }
 
+export function selectionToAddress(selection: Selection): string {
+  const range = normalizeSelection(selection)
+  const start = pointToAddress({ row: range.top, col: range.left })
+  const end = pointToAddress({ row: range.bottom, col: range.right })
+  return start === end ? start : `${start}:${end}`
+}
+
+export function parseSelectionAddress(value: string): Selection | null {
+  const parts = value.trim().toUpperCase().split(':').map((part) => part.trim()).filter(Boolean)
+  if (!parts.length || parts.length > 2) return null
+  const start = parseAddress(parts[0])
+  const end = parseAddress(parts[1] || parts[0])
+  if (!start || !end) return null
+  return { anchor: start, focus: end }
+}
+
 export function getSelectedPoints(selection: Selection): Point[] {
   const { top, bottom, left, right } = normalizeSelection(selection)
   const points: Point[] = []
@@ -57,12 +74,32 @@ export function getCell(sheet: SheetData, row: number, col: number): CellData {
   return sheet.cells[cellKey(row, col)] ?? { value: '' }
 }
 
+export function getColumnWidth(sheet: SheetData, col: number): number {
+  return sheet.columnWidths?.[String(col)] ?? DEFAULT_COLUMN_WIDTH
+}
+
 export function createBlankSheet(index = 1): SheetData {
   return {
     id: crypto.randomUUID(),
     name: `Sheet${index}`,
     cells: {},
+    columnWidths: {},
+    showGridlines: true,
+    freezeTopRow: false,
+    freezeFirstColumn: false,
   }
+}
+
+export function shiftFormulaReferences(value: string, rowDelta: number, colDelta: number): string {
+  if (!value.startsWith('=')) return value
+
+  return value.replace(/(\$?)([A-Z]+)(\$?)(\d+)/gi, (_match, absoluteCol: string, letters: string, absoluteRow: string, digits: string) => {
+    const sourceCol = nameToCol(letters)
+    const sourceRow = Number(digits) - 1
+    const nextCol = absoluteCol ? sourceCol : Math.max(0, Math.min(COLS - 1, sourceCol + colDelta))
+    const nextRow = absoluteRow ? sourceRow : Math.max(0, Math.min(ROWS - 1, sourceRow + rowDelta))
+    return `${absoluteCol}${colToName(nextCol)}${absoluteRow}${nextRow + 1}`
+  })
 }
 
 export function parseCsv(text: string): string[][] {
@@ -90,6 +127,7 @@ export function parseCsv(text: string): string[][] {
       field = ''
     } else field += char
   }
+
   row.push(field.replace(/\r$/, ''))
   if (row.some(Boolean) || rows.length === 0) rows.push(row)
   return rows
@@ -98,6 +136,7 @@ export function parseCsv(text: string): string[][] {
 export function toCsv(sheet: SheetData): string {
   let maxRow = 0
   let maxCol = 0
+
   Object.keys(sheet.cells).forEach((key) => {
     const [row, col] = key.split(':').map(Number)
     maxRow = Math.max(maxRow, row)
@@ -106,10 +145,12 @@ export function toCsv(sheet: SheetData): string {
 
   const quote = (value: string) => (/[,"\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value)
   const lines: string[] = []
+
   for (let row = 0; row <= maxRow; row += 1) {
     const values: string[] = []
     for (let col = 0; col <= maxCol; col += 1) values.push(quote(getCell(sheet, row, col).value))
     lines.push(values.join(','))
   }
+
   return lines.join('\n')
 }
