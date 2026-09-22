@@ -152,6 +152,11 @@ class Lexer {
         continue
       }
 
+      if (char === "'") {
+        tokens.push({ type: 'identifier', value: this.readQuotedSheetReference() })
+        continue
+      }
+
       if (/\d/.test(char) || (char === '.' && /\d/.test(this.source[this.index + 1] || ''))) {
         tokens.push({ type: 'number', value: this.readNumber() })
         continue
@@ -246,12 +251,36 @@ class Lexer {
 
     while (
       this.index < this.source.length &&
-      /[A-Za-z0-9_.$]/.test(this.source[this.index])
+      /[A-Za-z0-9_.$!]/.test(this.source[this.index])
     ) {
       this.index += 1
     }
 
     return this.source.slice(start, this.index)
+  }
+
+  private readQuotedSheetReference() {
+    this.index += 1
+    let sheetName = ''
+
+    while (this.index < this.source.length && this.source[this.index] !== "'") {
+      sheetName += this.source[this.index]
+      this.index += 1
+    }
+
+    if (this.source[this.index] === "'") this.index += 1
+    if (this.source[this.index] !== '!') return sheetName
+    this.index += 1
+
+    const start = this.index
+    while (
+      this.index < this.source.length &&
+      /[A-Za-z0-9_.$]/.test(this.source[this.index])
+    ) {
+      this.index += 1
+    }
+
+    return sheetName + '!' + this.source.slice(start, this.index)
   }
 }
 
@@ -262,6 +291,7 @@ class Parser {
     private readonly tokens: Token[],
     private readonly sheet: SheetData,
     private readonly stack: Set<string>,
+    private readonly sheets: SheetData[],
   ) {}
 
   parse(): FormulaValue {
