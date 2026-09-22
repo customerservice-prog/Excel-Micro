@@ -3321,6 +3321,10 @@ export default function App() {
                         if (editing) endEdit(true)
                         const p = { row, col }
 
+                        if (validationRule?.inputMessage) {
+                          setNotice((validationRule.inputTitle ? validationRule.inputTitle + ': ' : '') + validationRule.inputMessage)
+                        }
+
                         if (formatPainter && !sheet.protected) {
                           const copiedFormat = structuredClone(formatPainter)
                           mutate((next) => {
@@ -3396,7 +3400,7 @@ export default function App() {
                           }}
                         />
                       )}
-                      {validationRule && !editing && (
+                      {validationRule && (validationRule.type || 'list') === 'list' && !editing && (
                         <button
                           className={'cell-validation-button ' + (filterHeader ? 'with-filter' : '')}
                           title="Choose an allowed value"
@@ -3731,7 +3735,7 @@ export default function App() {
                 <span className="validation-blank">Blank</span>
               </button>
             )}
-            {rule.options.map((option) => (
+            {(rule.options || []).map((option) => (
               <button key={option} onClick={() => chooseValidationValue(option)}>
                 {option}
               </button>
