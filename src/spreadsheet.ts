@@ -120,6 +120,8 @@ export function createBlankSheet(index = 1): SheetData {
     showGridlines: true,
     freezeTopRow: false,
     freezeFirstColumn: false,
+    filters: {},
+    conditionalFormats: [],
   }
 }
 
