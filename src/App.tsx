@@ -556,6 +556,8 @@ export default function App() {
       .split('\n')
       .map((row) => row.split('\t'))
 
+    let rejected = 0
+
     mutate((next) => {
       const s = activeSheet(next)
 
@@ -565,6 +567,16 @@ export default function App() {
           const col = point.col + co
           if (row >= ROWS || col >= COLS) return
 
+          const validation = dataValidationForCell(s, row, col)
+          const valid = !validation ||
+            (validation.allowBlank && value.trim() === '') ||
+            validation.options.some((option) => option === value)
+
+          if (!valid) {
+            rejected += 1
+            return
+          }
+
           const key = cellKey(row, col)
           s.cells[key] = {
             ...(s.cells[key] || { value: '' }),
@@ -573,6 +585,10 @@ export default function App() {
         })
       })
     })
+
+    if (rejected > 0) {
+      setNotice(`${rejected} pasted value${rejected === 1 ? '' : 's'} rejected by validation`)
+    }
   }
 
   function fillDown() {
