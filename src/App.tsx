@@ -480,6 +480,7 @@ export default function App() {
   const [hyperlinkDraft, setHyperlinkDraft] = useState('')
   const [hyperlinkTarget, setHyperlinkTarget] = useState<Point>({ row: 0, col: 0 })
   const fileRef = useRef<HTMLInputElement>(null)
+  const imageRef = useRef<HTMLInputElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const columnResizeRef = useRef<{ col: number; startX: number; startWidth: number } | null>(null)
   const rowResizeRef = useRef<{ row: number; startY: number; startHeight: number } | null>(null)
@@ -1354,6 +1355,127 @@ export default function App() {
     setNotice('Text split into ' + widest + ' column' + (widest === 1 ? '' : 's'))
   }
 
+  function insertCheckboxes() {
+    const points = getSelectedPoints(selection)
+    mutate((next) => {
+      const s = activeSheet(next)
+      points.forEach((target) => {
+        const key = cellKey(target.row, target.col)
+        const old = s.cells[key] || { value: '' }
+        const checked = old.value.toUpperCase() === 'TRUE'
+        s.cells[key] = {
+          ...old,
+          value: old.value === '' ? 'FALSE' : checked ? 'TRUE' : 'FALSE',
+          checkbox: true,
+        }
+      })
+    })
+    setNotice('Checkboxes inserted')
+  }
+
+  function removeCheckboxes() {
+    const points = getSelectedPoints(selection)
+    mutate((next) => {
+      const s = activeSheet(next)
+      points.forEach((target) => {
+        const key = cellKey(target.row, target.col)
+        const old = s.cells[key]
+        if (!old) return
+        s.cells[key] = { ...old, checkbox: undefined }
+      })
+    })
+    setNotice('Checkbox controls removed')
+  }
+
+  function handleImageFile(file: File) {
+    if (file.size > 1_500_000) {
+      setNotice('Choose an image under 1.5 MB for local workbook storage')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') return
+      mutate((next) => {
+        const s = activeSheet(next)
+        s.objects ||= []
+        s.objects.push({
+          id: crypto.randomUUID(),
+          type: 'image',
+          row: point.row,
+          col: point.col,
+          width: 240,
+          height: 160,
+          src: reader.result as string,
+        })
+      })
+      setNotice('Image inserted')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  function insertTextBox() {
+    const text = window.prompt('Text box content', 'Text box')
+    if (text === null) return
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.objects ||= []
+      s.objects.push({
+        id: crypto.randomUUID(),
+        type: 'textBox',
+        row: point.row,
+        col: point.col,
+        width: 220,
+        height: 90,
+        text,
+        fill: '#ffffff',
+        border: '#777777',
+      })
+    })
+    setNotice('Text box inserted')
+  }
+
+  function insertShape() {
+    const text = window.prompt('Shape text', 'Shape')
+    if (text === null) return
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.objects ||= []
+      s.objects.push({
+        id: crypto.randomUUID(),
+        type: 'shape',
+        row: point.row,
+        col: point.col,
+        width: 180,
+        height: 80,
+        text,
+        fill: '#e2f0d9',
+        border: '#70ad47',
+      })
+    })
+    setNotice('Shape inserted')
+  }
+
+  function removeSheetObject(id: string) {
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.objects = (s.objects || []).filter((object) => object.id !== id)
+    })
+    setNotice('Object removed')
+  }
+
+  function editSheetObject(id: string) {
+    const object = (sheet.objects || []).find((item) => item.id === id)
+    if (!object || object.type === 'image') return
+    const text = window.prompt('Edit object text', object.text || '')
+    if (text === null) return
+    mutate((next) => {
+      const s = activeSheet(next)
+      const target = (s.objects || []).find((item) => item.id === id)
+      if (target) target.text = text
+    })
+  }
+
   function addSheet() {
     mutate((next) => {
       const s = createBlankSheet(next.sheets.length + 1)
@@ -1763,6 +1885,23 @@ export default function App() {
       }
     })
     s.notes = movedNotes
+
+    s.objects = (s.objects || []).flatMap((object) => {
+      const nextObject = { ...object }
+
+      if (axis === 'row') {
+        if (delta === -1 && nextObject.row === index) return []
+        if (delta === 1 && nextObject.row >= index) nextObject.row += 1
+        if (delta === -1 && nextObject.row > index) nextObject.row -= 1
+      } else {
+        if (delta === -1 && nextObject.col === index) return []
+        if (delta === 1 && nextObject.col >= index) nextObject.col += 1
+        if (delta === -1 && nextObject.col > index) nextObject.col -= 1
+      }
+
+      if (nextObject.row < 0 || nextObject.row >= ROWS || nextObject.col < 0 || nextObject.col >= COLS) return []
+      return [nextObject]
+    })
 
     const shiftDimensionMap = (
       source: Record<string, number> | undefined,
@@ -3009,8 +3148,16 @@ export default function App() {
               <RibbonButton icon="◔" label="Pie chart" onClick={() => { setChartType('pie'); setChartOpen(true) }} />
             </Group>
 
-            <Group name="Links">
+            <Group name="Links & controls">
               <RibbonButton icon="↗" label="Hyperlink" onClick={() => openHyperlink()} />
+              <RibbonButton icon="☑" label="Checkbox" onClick={insertCheckboxes} />
+              <RibbonButton icon="×" label="Remove checkbox" onClick={removeCheckboxes} />
+            </Group>
+
+            <Group name="Objects">
+              <RibbonButton icon="▧" label="Image" onClick={() => imageRef.current?.click()} />
+              <RibbonButton icon="T" label="Text box" onClick={insertTextBox} />
+              <RibbonButton icon="▭" label="Shape" onClick={insertShape} />
             </Group>
 
             <Group name="Worksheets">
