@@ -2076,6 +2076,38 @@ export default function App() {
         if (delta === -1 && nextObject.col > index) nextObject.col -= 1
       }
 
+      if (nextObject.chartRange) {
+        const chartRange = { ...nextObject.chartRange }
+
+        if (axis === 'row') {
+          if (delta === 1 && index <= chartRange.top) {
+            chartRange.top += 1
+            chartRange.bottom += 1
+          } else if (delta === 1 && index <= chartRange.bottom) {
+            chartRange.bottom = Math.min(ROWS - 1, chartRange.bottom + 1)
+          } else if (delta === -1 && index < chartRange.top) {
+            chartRange.top = Math.max(0, chartRange.top - 1)
+            chartRange.bottom = Math.max(chartRange.top, chartRange.bottom - 1)
+          } else if (delta === -1 && index <= chartRange.bottom) {
+            chartRange.bottom = Math.max(chartRange.top, chartRange.bottom - 1)
+          }
+        } else {
+          if (delta === 1 && index <= chartRange.left) {
+            chartRange.left += 1
+            chartRange.right += 1
+          } else if (delta === 1 && index <= chartRange.right) {
+            chartRange.right = Math.min(COLS - 1, chartRange.right + 1)
+          } else if (delta === -1 && index < chartRange.left) {
+            chartRange.left = Math.max(0, chartRange.left - 1)
+            chartRange.right = Math.max(chartRange.left, chartRange.right - 1)
+          } else if (delta === -1 && index <= chartRange.right) {
+            chartRange.right = Math.max(chartRange.left, chartRange.right - 1)
+          }
+        }
+
+        nextObject.chartRange = chartRange
+      }
+
       if (nextObject.row < 0 || nextObject.row >= ROWS || nextObject.col < 0 || nextObject.col >= COLS) return []
       return [nextObject]
     })
