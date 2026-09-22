@@ -27,8 +27,8 @@ Legend:
 - 🟡 Worksheet protection
   - Blocks edits through Excel Micro's mutation engine
   - No password / granular locked-cell permissions yet
-- ⬜ Hide / unhide worksheets
-- ⬜ Hide / unhide rows and columns
+- ✅ Hide / unhide worksheets
+- ✅ Hide / unhide rows and columns
 - ⬜ Move / copy worksheets between workbooks
 - ⬜ Multiple workbook windows
 
@@ -45,12 +45,12 @@ Legend:
 - ✅ Copy and multi-cell paste
 - ✅ Fill Down / Fill Right with relative formula shifting
 - ✅ Absolute cell references during fill
-- ⬜ Cell borders
-- ⬜ Merge / unmerge cells
-- ⬜ Format Painter
+- ✅ Cell borders
+- ✅ Merge / unmerge cells
+- ✅ Format Painter
 - ⬜ Custom number format language
-- ⬜ Date/time format gallery
-- ⬜ Accounting / scientific / fraction formats
+- ✅ Date / time / date-time formats
+- ✅ Accounting / scientific / fraction formats
 - ⬜ Cell styles gallery
 - ⬜ Themes / fonts / workbook colors
 
@@ -86,21 +86,21 @@ Legend:
 
 ### Remaining formula parity
 
-- ⬜ SUMIFS / COUNTIFS / AVERAGEIFS
+- ✅ SUMIFS / COUNTIFS / AVERAGEIFS
 - ⬜ VLOOKUP / HLOOKUP
-- ⬜ XMATCH
+- ✅ XMATCH
 - ⬜ OFFSET / INDIRECT
 - ⬜ Dynamic arrays: FILTER / SORT / SORTBY / UNIQUE / SEQUENCE
 - ⬜ LET / LAMBDA
-- ⬜ Date/time family
-- ⬜ Financial family
-- ⬜ Statistical family
+- 🟡 Date/time family — TODAY, NOW, DATE, YEAR, MONTH, DAY, HOUR, MINUTE, SECOND, EDATE, EOMONTH, TIME, DATEVALUE, TIMEVALUE, WEEKDAY, DAYS
+- 🟡 Financial family — PMT, PV, FV
+- 🟡 Statistical family — STDEV, VAR, PERCENTILE, LARGE, SMALL, RANK
 - ⬜ Engineering family
 - ⬜ Database family
 - ⬜ Cube functions
-- ⬜ Information functions
+- 🟡 Information functions — ISNUMBER, ISTEXT, ISERROR, ISBLANK, VALUE
 - ⬜ Full Excel error behavior and coercion
-- ⬜ Cross-sheet references
+- ✅ Cross-sheet references including quoted sheet names
 - ⬜ Cross-workbook references
 - ⬜ Calculation modes / dependency graph / incremental recalculation
 - ⬜ Multi-threaded / worker calculation
@@ -125,8 +125,8 @@ Legend:
 - ⬜ Date/number-specific filter menus
 - ⬜ Slicers
 - ⬜ Timeline controls
-- ⬜ Remove duplicates
-- ⬜ Text to Columns
+- ✅ Remove Duplicates
+- ✅ Text to Columns
 - ⬜ Flash Fill
 - ⬜ Consolidate
 
@@ -140,11 +140,11 @@ Legend:
 - ✅ Custom fill/text colors
 - ✅ Multiple saved rules
 - ✅ Rules move with inserted/deleted rows and columns
-- ⬜ Data bars
-- ⬜ Color scales
+- ✅ Data bars
+- ✅ Color scales
 - ⬜ Icon sets
 - ⬜ Top/bottom rules
-- ⬜ Duplicate/unique rules
+- ✅ Duplicate / unique rules
 - ⬜ Formula-based rules
 - ⬜ Rule priority / Stop If True
 
@@ -156,12 +156,12 @@ Legend:
 - ✅ Invalid typed values rejected
 - ✅ Invalid pasted values rejected
 - ✅ Validation ranges move with structural edits
-- ⬜ Whole number / decimal validation
-- ⬜ Date / time validation
-- ⬜ Text length validation
+- ✅ Whole number / decimal validation
+- 🟡 Date validation built; time-specific validation remains
+- ✅ Text length validation
 - ⬜ Custom formula validation
-- ⬜ Input messages
-- ⬜ Configurable warning/error modes
+- ✅ Input messages
+- ✅ Stop / Warning / Information error modes
 - ⬜ Source list from named range or sheet range
 
 ## Notes, comments, and review
@@ -183,8 +183,8 @@ Legend:
 - ✅ Line charts
 - ✅ Pie / donut-style charts
 - ✅ Chart type switcher
-- 🟡 Charts are quick views generated from the active range
-- ⬜ Persistent chart objects on worksheet canvas
+- ✅ Persistent chart objects can be inserted on the worksheet and remain linked to source ranges
+- ✅ Persistent chart objects on worksheet canvas
 - ⬜ Column charts
 - ⬜ Area charts
 - ⬜ Scatter / bubble
@@ -226,12 +226,12 @@ Legend:
 - ✅ Margin presets
 - ✅ Print gridlines
 - ✅ Workbook/sheet print title
-- ⬜ Print area selection
+- ✅ Print area selection
 - ⬜ Print titles / repeating rows
-- ⬜ Header and footer editor
+- ✅ Header and footer text
 - ⬜ Page breaks
 - ⬜ Page Break Preview
-- ⬜ Scaling / Fit to pages
+- 🟡 Print scaling from 50%–200%; automatic fit-to-pages remains
 - ⬜ Center on page
 - ⬜ Custom paper sizes
 
@@ -257,13 +257,13 @@ Legend:
 
 ## Objects and insert tools
 
-- ⬜ Images
-- ⬜ Shapes
-- ⬜ Text boxes
+- ✅ Images
+- ✅ Basic shapes
+- ✅ Text boxes
 - ⬜ Icons
 - ⬜ SmartArt-style diagrams
-- ⬜ Hyperlinks
-- ⬜ Checkboxes / form controls
+- ✅ Hyperlinks
+- 🟡 In-cell checkboxes built; additional form controls remain
 - ⬜ Symbols / equations
 - ⬜ Embedded objects
 
@@ -304,9 +304,9 @@ Legend:
 
 ## Scale and performance
 
-- 🟡 Current working grid is intentionally bounded to 200 × 52 for the custom renderer
+- 🟡 Current virtualized working grid is 10,000 × 200; larger than 0.8 but below Excel's maximum limits
 - ⬜ Excel-scale row / column limits
-- ⬜ Virtualized rows and columns
+- ✅ Virtualized rows and columns
 - ⬜ Worker-based formula calculations
 - ⬜ Dependency graph recalculation
 - ⬜ Efficient large-file streaming/import
@@ -327,13 +327,13 @@ Legend:
 
 Recommended order for closing the largest practical gaps:
 
-1. Virtualized, much larger worksheets
-2. Cross-sheet references and more formula families
-3. Merge/borders/custom formatting
-4. Images, links, and worksheet objects
-5. Advanced PivotTables and persistent charts
-6. Cloud workbook API + accounts + share links
-7. Real-time collaboration and cloud history/comments
-8. Data import/query system
-9. Automation / scripts
-10. Deeper XLSX round-trip compatibility
+1. Dynamic-array formulas, structured references, and deeper Excel error/coercion parity
+2. Excel-scale worksheet limits plus worker/dependency-graph calculation
+3. Advanced PivotTables, slicers, and broader chart families
+4. Cloud workbook API + accounts + share links
+5. Real-time collaboration, cloud history, and threaded comments
+6. Power Query-style data import/transformation and external connections
+7. Automation / scripts / macro strategy
+8. Deeper XLSX round-trip compatibility including charts, validation, formatting, and comments
+9. Advanced protection, accessibility, and enterprise controls
+10. Additional worksheet objects, controls, and presentation features
