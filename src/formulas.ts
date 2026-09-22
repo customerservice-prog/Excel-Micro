@@ -103,6 +103,34 @@ function isErrorValue(value: FormulaValue): boolean {
   return !Array.isArray(value) && typeof value === 'string' && value.startsWith('#')
 }
 
+const EXCEL_EPOCH = Date.UTC(1899, 11, 30)
+const DAY_MS = 86_400_000
+
+function excelSerialFromDate(date: Date): number {
+  return (Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate(),
+    date.getUTCHours(),
+    date.getUTCMinutes(),
+    date.getUTCSeconds(),
+    date.getUTCMilliseconds(),
+  ) - EXCEL_EPOCH) / DAY_MS
+}
+
+function dateFromFormulaValue(value: FormulaValue): Date | null {
+  if (isNumeric(value)) {
+    const serial = toNumber(value)
+    const date = new Date(EXCEL_EPOCH + serial * DAY_MS)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  const text = toText(value).trim()
+  if (!text) return null
+  const date = new Date(text)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 class Lexer {
   private index = 0
 
@@ -495,6 +523,23 @@ class Parser {
       return source.filter((value) => matchesCriteria(value, criterion)).length
     }
 
+    if (name === 'COUNTIFS') {
+      const pairs: Array<{ source: FormulaValue[]; criterion: FormulaValue }> = []
+      for (let index = 0; index + 1 < args.length; index += 2) {
+        pairs.push({
+          source: asList(args[index]),
+          criterion: args[index + 1] ?? '',
+        })
+      }
+
+      const length = Math.max(0, ...pairs.map((pair) => pair.source.length))
+      let count = 0
+      for (let row = 0; row < length; row += 1) {
+        if (pairs.every((pair) => matchesCriteria(pair.source[row] ?? '', pair.criterion))) count += 1
+      }
+      return count
+    }
+
     if (name === 'SUMIF' || name === 'AVERAGEIF') {
       const source = asList(args[0])
       const criterion = args[1] ?? ''
@@ -516,6 +561,32 @@ class Parser {
       return matches.reduce((sum, value) => sum + value, 0)
     }
 
+    if (name === 'SUMIFS' || name === 'AVERAGEIFS') {
+      const sumSource = asList(args[0])
+      const pairs: Array<{ source: FormulaValue[]; criterion: FormulaValue }> = []
+
+      for (let index = 1; index + 1 < args.length; index += 2) {
+        pairs.push({
+          source: asList(args[index]),
+          criterion: args[index + 1] ?? '',
+        })
+      }
+
+      const matches: number[] = []
+      sumSource.forEach((candidate, row) => {
+        if (!pairs.every((pair) => matchesCriteria(pair.source[row] ?? '', pair.criterion))) return
+        if (isNumeric(candidate)) matches.push(toNumber(candidate))
+      })
+
+      if (name === 'AVERAGEIFS') {
+        return matches.length
+          ? matches.reduce((sum, value) => sum + value, 0) / matches.length
+          : 0
+      }
+
+      return matches.reduce((sum, value) => sum + value, 0)
+    }
+
     if (name === 'XLOOKUP') {
       const lookupValue = args[0] ?? ''
       const lookupArray = asList(args[1])
@@ -526,6 +597,13 @@ class Parser {
     }
 
     if (name === 'MATCH') {
+      const lookupValue = args[0] ?? ''
+      const lookupArray = asList(args[1])
+      const matchIndex = lookupArray.findIndex((value) => compare(value, lookupValue, '='))
+      return matchIndex === -1 ? '#N/A' : matchIndex + 1
+    }
+
+    if (name === 'XMATCH') {
       const lookupValue = args[0] ?? ''
       const lookupArray = asList(args[1])
       const matchIndex = lookupArray.findIndex((value) => compare(value, lookupValue, '='))
@@ -551,6 +629,46 @@ class Parser {
         .map(toText)
         .filter((value) => !ignoreEmpty || value !== '')
       return parts.join(delimiter)
+    }
+
+    if (name === 'TODAY') {
+      const now = new Date()
+      return excelSerialFromDate(new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())))
+    }
+
+    if (name === 'NOW') return excelSerialFromDate(new Date())
+
+    if (name === 'DATE') {
+      const year = Math.trunc(toNumber(args[0] ?? 1900))
+      const month = Math.trunc(toNumber(args[1] ?? 1))
+      const day = Math.trunc(toNumber(args[2] ?? 1))
+      return excelSerialFromDate(new Date(Date.UTC(year, month - 1, day)))
+    }
+
+    if (['YEAR', 'MONTH', 'DAY', 'HOUR', 'MINUTE', 'SECOND'].includes(name)) {
+      const date = dateFromFormulaValue(args[0] ?? '')
+      if (!date) return '#VALUE!'
+      if (name === 'YEAR') return date.getUTCFullYear()
+      if (name === 'MONTH') return date.getUTCMonth() + 1
+      if (name === 'DAY') return date.getUTCDate()
+      if (name === 'HOUR') return date.getUTCHours()
+      if (name === 'MINUTE') return date.getUTCMinutes()
+      return date.getUTCSeconds()
+    }
+
+    if (name === 'EDATE' || name === 'EOMONTH') {
+      const date = dateFromFormulaValue(args[0] ?? '')
+      if (!date) return '#VALUE!'
+      const months = Math.trunc(toNumber(args[1] ?? 0))
+      const shifted = new Date(Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth() + months + (name === 'EOMONTH' ? 1 : 0),
+        name === 'EOMONTH' ? 0 : date.getUTCDate(),
+        date.getUTCHours(),
+        date.getUTCMinutes(),
+        date.getUTCSeconds(),
+      ))
+      return excelSerialFromDate(shifted)
     }
 
     if (name === 'MEDIAN') {
