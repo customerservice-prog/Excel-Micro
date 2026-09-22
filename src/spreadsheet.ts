@@ -124,6 +124,7 @@ export function createBlankSheet(index = 1): SheetData {
     conditionalFormats: [],
     namedRanges: {},
     dataValidations: [],
+    tables: [],
   }
 }
 
