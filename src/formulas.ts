@@ -86,21 +86,23 @@ function matchesCriteria(value: FormulaValue, criterion: FormulaValue): boolean 
   }
 
   if (text.includes('*') || text.includes('?')) {
-    const escaped = text.replace(/[.+^$(){}|[\]\\]/g, '\\function compare(left: FormulaValue, right: FormulaValue, operator: string): boolean {
-  const numeric = isNumeric(left) && isNumeric(right)
-  const a = numeric ? toNumber(left) : toText(left).toLowerCase()
-  const b = numeric ? toNumber(right) : toText(right).toLowerCase()
+    const escaped = text.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
+    const pattern = '^' + escaped.replace(/\*/g, '.*').replace(/\?/g, '.') + '$'
+    return new RegExp(pattern, 'i').test(toText(value))
+  }
 
-  if (operator === '=') return a === b
-  if (operator === '<>' || operator === '!=') return a !== b
-  if (operator === '>') return a > b
-  if (operator === '<') return a < b
-  if (operator === '>=') return a >= b
-  if (operator === '<=') return a <= b
-  return false
+  return compare(value, criterion, '=')
 }
-')
-    const pattern = '^' + escaped.replace(/\*/g, '.*').replace(/\?/g, '.') + '
+
+function asList(value: FormulaValue | undefined): FormulaValue[] {
+  if (value === undefined) return []
+  return Array.isArray(value) ? flatten(value) : [value]
+}
+
+function isErrorValue(value: FormulaValue): boolean {
+  return !Array.isArray(value) && typeof value === 'string' && value.startsWith('#')
+}
+
 class Lexer {
   private index = 0
 
