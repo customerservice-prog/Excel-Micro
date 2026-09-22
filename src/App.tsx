@@ -2330,8 +2330,18 @@ export default function App() {
         .filter(Boolean),
     ))
 
-    if (!options.length) {
+    if (validationType === 'list' && !options.length) {
       setNotice('Add at least one dropdown option')
+      return
+    }
+
+    if (validationType !== 'list' && !validationMinimum.trim()) {
+      setNotice('Enter a validation value')
+      return
+    }
+
+    if (validationType !== 'list' && validationOperator === 'between' && !validationMaximum.trim()) {
+      setNotice('Enter both ends of the validation range')
       return
     }
 
@@ -2344,13 +2354,20 @@ export default function App() {
         bottom: range.bottom,
         left: range.left,
         right: range.right,
-        options,
+        type: validationType,
+        options: validationType === 'list' ? options : undefined,
+        operator: validationType === 'list' ? undefined : validationOperator,
+        minimum: validationType === 'list' ? undefined : validationMinimum,
+        maximum: validationType === 'list' ? undefined : validationMaximum,
         allowBlank: validationAllowBlank,
+        inputTitle: validationInputTitle.trim() || undefined,
+        inputMessage: validationInputMessage.trim() || undefined,
+        errorStyle: validationErrorStyle,
       })
     })
 
     setValidationOpen(false)
-    setNotice('Dropdown validation added')
+    setNotice(validationType === 'list' ? 'Dropdown validation added' : 'Validation rule added')
   }
 
   function clearDataValidation() {
