@@ -25,6 +25,7 @@ import {
 import type {
   CellData,
   CellFormat,
+  ConditionalFormatKind,
   ConditionalFormatOperator,
   DataValidationErrorStyle,
   DataValidationOperator,
@@ -196,18 +197,84 @@ function matchesCondition(
   return true
 }
 
-function conditionalStyleForCell(sheet: SheetData, row: number, col: number, value: string) {
+type ConditionalMetric = {
+  min?: number
+  max?: number
+  counts?: Map<string, number>
+}
+
+function hexToRgb(hex: string) {
+  const normalized = hex.replace('#', '')
+  const source = normalized.length === 3
+    ? normalized.split('').map((char) => char + char).join('')
+    : normalized.padEnd(6, '0').slice(0, 6)
+  return {
+    r: parseInt(source.slice(0, 2), 16) || 0,
+    g: parseInt(source.slice(2, 4), 16) || 0,
+    b: parseInt(source.slice(4, 6), 16) || 0,
+  }
+}
+
+function mixHexColors(from: string, to: string, ratio: number) {
+  const a = hexToRgb(from)
+  const b = hexToRgb(to)
+  const t = Math.max(0, Math.min(1, ratio))
+  const channel = (start: number, end: number) => Math.round(start + (end - start) * t)
+  return `rgb(${channel(a.r, b.r)}, ${channel(a.g, b.g)}, ${channel(a.b, b.b)})`
+}
+
+function conditionalStyleForCell(
+  sheet: SheetData,
+  row: number,
+  col: number,
+  value: string,
+  metrics: Record<string, ConditionalMetric> = {},
+) {
   let background: string | undefined
   let color: string | undefined
+  let dataBarPercent: number | undefined
+  let dataBarColor: string | undefined
 
   for (const rule of sheet.conditionalFormats || []) {
     if (row < rule.top || row > rule.bottom || col < rule.left || col > rule.right) continue
+    const kind = rule.kind || 'cell'
+    const metric = metrics[rule.id]
+
+    if (kind === 'dataBar') {
+      const numeric = Number(value.replace(/[$,%]/g, ''))
+      if (!Number.isFinite(numeric)) continue
+      const min = metric?.min ?? 0
+      const max = metric?.max ?? 0
+      dataBarPercent = max === min ? 100 : ((numeric - min) / (max - min)) * 100
+      dataBarColor = rule.dataBarColor || '#63be7b'
+      continue
+    }
+
+    if (kind === 'colorScale') {
+      const numeric = Number(value.replace(/[$,%]/g, ''))
+      if (!Number.isFinite(numeric)) continue
+      const min = metric?.min ?? 0
+      const max = metric?.max ?? 0
+      const ratio = max === min ? 0.5 : (numeric - min) / (max - min)
+      background = mixHexColors(rule.minColor || '#f8696b', rule.maxColor || '#63be7b', ratio)
+      continue
+    }
+
+    if (kind === 'duplicate' || kind === 'unique') {
+      const count = metric?.counts?.get(value.trim().toLowerCase()) || 0
+      const matches = kind === 'duplicate' ? count > 1 : count === 1
+      if (!matches) continue
+      background = rule.background
+      color = rule.color
+      continue
+    }
+
     if (!matchesCondition(value, rule.operator, rule.value || '')) continue
     background = rule.background
     color = rule.color
   }
 
-  return { background, color }
+  return { background, color, dataBarPercent, dataBarColor }
 }
 
 const TABLE_PALETTES: Record<TableStyle, { header: string; band: string; text: string }> = {
