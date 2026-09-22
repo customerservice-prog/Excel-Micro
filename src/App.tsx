@@ -2830,6 +2830,7 @@ export default function App() {
                   gridRef.current?.focus()
                 }}
                 onContextMenu={(e) => openContextMenu(e, 'col', col)}
+                style={{ gridColumnStart: col + 2 }}
               >
                 {colToName(col)}
                 <span
@@ -2846,7 +2847,7 @@ export default function App() {
             ))}
 
             {Array.from({ length: ROWS }, (_, row) => (
-              <div className={'grid-row ' + (hiddenRows.has(row) ? 'filtered-out' : '')} key={'r' + row}>
+              <div className={'grid-row ' + (hiddenRows.has(row) || sheet.hiddenRows?.[String(row)] ? 'filtered-out' : '')} key={'r' + row}>
                 <div
                   className={
                     'row-head ' +
@@ -2861,6 +2862,7 @@ export default function App() {
                     gridRef.current?.focus()
                   }}
                   onContextMenu={(e) => openContextMenu(e, 'row', row)}
+                  style={{ gridRowStart: row + 2, gridColumnStart: 1 }}
                 >
                   {row + 1}
                   <span
@@ -2910,6 +2912,25 @@ export default function App() {
                   const filterActive = Boolean(sheet.filters?.[String(col)])
                   const validationRule = dataValidationForCell(sheet, row, col)
                   const note = sheet.notes?.[cellKey(row, col)]
+                  const merge = mergeForCell(sheet, row, col)
+                  const mergeOrigin = Boolean(merge && merge.top === row && merge.left === col)
+                  const mergeCovered = Boolean(merge && !mergeOrigin)
+                  const mergeWidth = mergeOrigin && merge
+                    ? Array.from({ length: merge.right - merge.left + 1 }, (_, offset) => {
+                        const targetCol = merge.left + offset
+                        return sheet.hiddenColumns?.[String(targetCol)]
+                          ? 0
+                          : getColumnWidth(sheet, targetCol) * zoom / 100
+                      }).reduce((sum, width) => sum + width, 0)
+                    : undefined
+                  const mergeHeight = mergeOrigin && merge
+                    ? Array.from({ length: merge.bottom - merge.top + 1 }, (_, offset) => {
+                        const targetRow = merge.top + offset
+                        return hiddenRows.has(targetRow) || sheet.hiddenRows?.[String(targetRow)]
+                          ? 0
+                          : getRowHeight(sheet, targetRow) * zoom / 100
+                      }).reduce((sum, height) => sum + height, 0)
+                    : undefined
 
                   return (
                     <div
@@ -2923,7 +2944,10 @@ export default function App() {
                         (data.format?.wrap ? ' wrap ' : '') +
                         (validationRule ? ' validation-cell ' : '') +
                         (tableStyleInfo.header ? ' table-header-cell ' : '') +
-                        (note ? ' has-note ' : '')
+                        (note ? ' has-note ' : '') +
+                        (mergeOrigin ? ' merged-origin ' : '') +
+                        (mergeCovered ? ' merged-covered ' : '') +
+                        (data.hyperlink ? ' hyperlink-cell ' : '')
                       }
                       style={{
                         fontWeight: data.format?.bold ? 700 : tableStyleInfo.bold ? 700 : 400,
@@ -2933,6 +2957,16 @@ export default function App() {
                         color: conditionalStyle.color || data.format?.color || tableStyleInfo.color,
                         background: conditionalStyle.background || data.format?.background || tableStyleInfo.background,
                         fontSize: data.format?.fontSize ? `${data.format.fontSize}px` : undefined,
+                        gridColumnStart: col + 2,
+                        gridRowStart: row + 2,
+                        visibility: mergeCovered ? 'hidden' : undefined,
+                        width: mergeWidth ? `${mergeWidth}px` : undefined,
+                        height: mergeHeight ? `${mergeHeight}px` : undefined,
+                        zIndex: mergeOrigin ? 18 : undefined,
+                        borderTop: data.format?.borderTop ? `1px solid ${data.format.borderColor || '#808080'}` : undefined,
+                        borderRight: data.format?.borderRight ? `1px solid ${data.format.borderColor || '#808080'}` : undefined,
+                        borderBottom: data.format?.borderBottom ? `1px solid ${data.format.borderColor || '#808080'}` : undefined,
+                        borderLeft: data.format?.borderLeft ? `1px solid ${data.format.borderColor || '#808080'}` : undefined,
                       }}
                       onMouseDown={(e) => {
                         e.preventDefault()
@@ -2972,6 +3006,17 @@ export default function App() {
                             if (e.key === 'Escape') endEdit(false)
                           }}
                         />
+                      ) : data.hyperlink ? (
+                        <a
+                          className="cell-hyperlink"
+                          href={data.hyperlink}
+                          target="_blank"
+                          rel="noreferrer"
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {display || data.hyperlink}
+                        </a>
                       ) : (
                         <span>{display}</span>
                       )}
