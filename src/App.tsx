@@ -3716,7 +3716,7 @@ export default function App() {
             <div className="rule-card-header">
               <div>
                 <span className="eyebrow">HYPERLINK</span>
-                <h2>Link ${pointToAddress(hyperlinkTarget)}</h2>
+                <h2>Link {pointToAddress(hyperlinkTarget)}</h2>
                 <p>Add a web address to the selected cell.</p>
               </div>
               <button onClick={() => setHyperlinkOpen(false)}>×</button>
