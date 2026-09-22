@@ -3,6 +3,7 @@ import type { CellData, Point, Selection, SheetData } from './types'
 export const ROWS = 200
 export const COLS = 52
 export const DEFAULT_COLUMN_WIDTH = 106
+export const DEFAULT_ROW_HEIGHT = 25
 
 export const cellKey = (row: number, col: number) => `${row}:${col}`
 
@@ -78,12 +79,44 @@ export function getColumnWidth(sheet: SheetData, col: number): number {
   return sheet.columnWidths?.[String(col)] ?? DEFAULT_COLUMN_WIDTH
 }
 
+export function getRowHeight(sheet: SheetData, row: number): number {
+  return sheet.rowHeights?.[String(row)] ?? DEFAULT_ROW_HEIGHT
+}
+
+export function shiftFormulaForStructure(
+  value: string,
+  axis: 'row' | 'col',
+  index: number,
+  delta: 1 | -1,
+): string {
+  if (!value.startsWith('=')) return value
+
+  return value.replace(/(\$?)([A-Z]+)(\$?)(\d+)/gi, (_match, absoluteCol: string, letters: string, absoluteRow: string, digits: string) => {
+    let col = nameToCol(letters)
+    let row = Number(digits) - 1
+
+    if (axis === 'row') {
+      if (delta === 1 && row >= index) row += 1
+      else if (delta === -1 && row === index) return '#REF!'
+      else if (delta === -1 && row > index) row -= 1
+    } else {
+      if (delta === 1 && col >= index) col += 1
+      else if (delta === -1 && col === index) return '#REF!'
+      else if (delta === -1 && col > index) col -= 1
+    }
+
+    if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return '#REF!'
+    return `${absoluteCol}${colToName(col)}${absoluteRow}${row + 1}`
+  })
+}
+
 export function createBlankSheet(index = 1): SheetData {
   return {
     id: crypto.randomUUID(),
     name: `Sheet${index}`,
     cells: {},
     columnWidths: {},
+    rowHeights: {},
     showGridlines: true,
     freezeTopRow: false,
     freezeFirstColumn: false,
