@@ -26,6 +26,7 @@ import type { CellData, CellFormat, NumberFormat, Point, Selection, SheetData, W
 
 const STORAGE_KEY = 'excel-micro-workbook-v1'
 type Tab = 'Home' | 'Insert' | 'Formulas' | 'Data' | 'View'
+type ContextMenuState = { x: number; y: number; kind: 'cell' | 'row' | 'col'; index: number }
 
 function newWorkbook(): WorkbookData {
   const sheet = createBlankSheet(1)
@@ -129,6 +130,7 @@ export default function App() {
   const [nameBox, setNameBox] = useState('A1')
   const [saveStatus, setSaveStatus] = useState('Saved')
   const [notice, setNotice] = useState('')
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const columnResizeRef = useRef<{ col: number; startX: number; startWidth: number } | null>(null)
@@ -224,6 +226,25 @@ export default function App() {
     return () => window.clearTimeout(timer)
   }, [notice])
 
+  useEffect(() => {
+    const close = () => setContextMenu(null)
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setContextMenu(null)
+    }
+
+    window.addEventListener('mousedown', close)
+    window.addEventListener('resize', close)
+    window.addEventListener('blur', close)
+    window.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('resize', close)
+      window.removeEventListener('blur', close)
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [])
+
   function activeSheet(next: WorkbookData) {
     return next.sheets.find((item) => item.id === next.activeSheetId) || next.sheets[0]
   }
@@ -274,6 +295,51 @@ export default function App() {
 
   function selectPoint(target: Point) {
     setSelection({ anchor: target, focus: target })
+  }
+
+  function openContextMenu(
+    event: React.MouseEvent,
+    kind: ContextMenuState['kind'],
+    index: number,
+    target?: Point,
+  ) {
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (kind === 'row') {
+      setSelection({
+        anchor: { row: index, col: 0 },
+        focus: { row: index, col: COLS - 1 },
+      })
+    } else if (kind === 'col') {
+      setSelection({
+        anchor: { row: 0, col: index },
+        focus: { row: ROWS - 1, col: index },
+      })
+    } else if (target) {
+      const current = normalizeSelection(selection)
+      const inside =
+        target.row >= current.top &&
+        target.row <= current.bottom &&
+        target.col >= current.left &&
+        target.col <= current.right
+
+      if (!inside) selectPoint(target)
+    }
+
+    const menuWidth = 210
+    const menuHeight = kind === 'cell' ? 250 : 220
+    setContextMenu({
+      x: Math.max(8, Math.min(window.innerWidth - menuWidth - 8, event.clientX)),
+      y: Math.max(8, Math.min(window.innerHeight - menuHeight - 8, event.clientY)),
+      kind,
+      index,
+    })
+  }
+
+  function runContextAction(action: () => void) {
+    setContextMenu(null)
+    window.requestAnimationFrame(action)
   }
 
   function applyFormat(patch: Partial<CellFormat>) {
@@ -1472,6 +1538,7 @@ export default function App() {
                   })
                   gridRef.current?.focus()
                 }}
+                onContextMenu={(e) => openContextMenu(e, 'col', col)}
               >
                 {colToName(col)}
                 <span
@@ -1502,6 +1569,7 @@ export default function App() {
                     })
                     gridRef.current?.focus()
                   }}
+                  onContextMenu={(e) => openContextMenu(e, 'row', row)}
                 >
                   {row + 1}
                   <span
@@ -1580,6 +1648,7 @@ export default function App() {
                         }
                       }}
                       onDoubleClick={() => beginEdit()}
+                      onContextMenu={(e) => openContextMenu(e, 'cell', row * COLS + col, { row, col })}
                     >
                       {active && editing ? (
                         <input
@@ -1684,6 +1753,53 @@ export default function App() {
             </div>
             <Chart data={chart} />
           </div>
+        </div>
+      )}
+
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="context-menu-title">
+            {contextMenu.kind === 'row'
+              ? `Row ${contextMenu.index + 1}`
+              : contextMenu.kind === 'col'
+                ? `Column ${colToName(contextMenu.index)}`
+                : selectionToAddress(selection)}
+          </div>
+
+          {contextMenu.kind === 'cell' && (
+            <>
+              <button onClick={() => runContextAction(() => void copySelected())}><span>⧉</span>Copy</button>
+              <button onClick={() => runContextAction(clearSelected)}><span>⌫</span>Clear contents</button>
+              <button onClick={() => runContextAction(clearFormatting)}><span>Tx</span>Clear formatting</button>
+              <div className="context-divider" />
+              <button onClick={() => runContextAction(insertRow)}><span>＋R</span>Insert row above</button>
+              <button onClick={() => runContextAction(insertColumn)}><span>＋C</span>Insert column left</button>
+            </>
+          )}
+
+          {contextMenu.kind === 'row' && (
+            <>
+              <button onClick={() => runContextAction(insertRow)}><span>＋</span>Insert row above</button>
+              <button className="context-danger" onClick={() => runContextAction(deleteRow)}><span>−</span>Delete row</button>
+              <div className="context-divider" />
+              <button onClick={() => runContextAction(() => autoFitRow(contextMenu.index))}><span>↕</span>AutoFit row height</button>
+              <button onClick={() => runContextAction(() => adjustRowHeight(6))}><span>↕</span>Increase row height</button>
+            </>
+          )}
+
+          {contextMenu.kind === 'col' && (
+            <>
+              <button onClick={() => runContextAction(insertColumn)}><span>＋</span>Insert column left</button>
+              <button className="context-danger" onClick={() => runContextAction(deleteColumn)}><span>−</span>Delete column</button>
+              <div className="context-divider" />
+              <button onClick={() => runContextAction(() => autoFitColumn(contextMenu.index))}><span>↔</span>AutoFit column width</button>
+              <button onClick={() => runContextAction(() => adjustColumnWidth(12))}><span>↔</span>Increase column width</button>
+            </>
+          )}
         </div>
       )}
 
