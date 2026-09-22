@@ -1195,6 +1195,26 @@ export default function App() {
 
     s.cells = moved
 
+    const movedNotes: NonNullable<SheetData['notes']> = {}
+    Object.entries(s.notes || {}).forEach(([key, note]) => {
+      let [row, col] = key.split(':').map(Number)
+
+      if (axis === 'row') {
+        if (delta === -1 && row === index) return
+        if (delta === 1 && row >= index) row += 1
+        if (delta === -1 && row > index) row -= 1
+      } else {
+        if (delta === -1 && col === index) return
+        if (delta === 1 && col >= index) col += 1
+        if (delta === -1 && col > index) col -= 1
+      }
+
+      if (row >= 0 && row < ROWS && col >= 0 && col < COLS) {
+        movedNotes[cellKey(row, col)] = note
+      }
+    })
+    s.notes = movedNotes
+
     const shiftDimensionMap = (
       source: Record<string, number> | undefined,
       max: number,
@@ -1421,6 +1441,142 @@ export default function App() {
     mutate((next) => restructureSheet(activeSheet(next), 'col', index, -1))
     selectPoint({ row: point.row, col: Math.min(index, COLS - 1) })
     setNotice(`Deleted column ${colToName(index)}`)
+  }
+
+  function openNote(target: Point = point) {
+    const existing = sheet.notes?.[cellKey(target.row, target.col)]?.text || ''
+    setNoteTarget(target)
+    setNoteDraft(existing)
+    setNoteOpen(true)
+  }
+
+  function saveNote() {
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.notes ||= {}
+      const key = cellKey(noteTarget.row, noteTarget.col)
+      const text = noteDraft.trim()
+
+      if (!text) delete s.notes[key]
+      else {
+        s.notes[key] = {
+          text,
+          updatedAt: Date.now(),
+        }
+      }
+    })
+
+    setNoteOpen(false)
+    setNotice(noteDraft.trim() ? 'Note saved' : 'Note removed')
+  }
+
+  function removeNote() {
+    mutate((next) => {
+      const s = activeSheet(next)
+      if (s.notes) delete s.notes[cellKey(noteTarget.row, noteTarget.col)]
+    })
+    setNoteDraft('')
+    setNoteOpen(false)
+    setNotice('Note removed')
+  }
+
+  function toggleProtection() {
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.protected = !s.protected
+    }, true)
+
+    setNotice(sheet.protected ? 'Worksheet unprotected' : 'Worksheet protected')
+  }
+
+  function updatePageLayout(patch: Partial<NonNullable<SheetData['pageLayout']>>) {
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.pageLayout = {
+        orientation: 'portrait',
+        paperSize: 'letter',
+        margins: 'normal',
+        printGridlines: true,
+        ...(s.pageLayout || {}),
+        ...patch,
+      }
+    }, true)
+  }
+
+  function printSheet() {
+    window.requestAnimationFrame(() => window.print())
+  }
+
+  function openPivotBuilder() {
+    const selected = normalizeSelection(selection)
+    const target = selected.bottom > selected.top && selected.right > selected.left
+      ? selected
+      : usedRange()
+
+    if (target.bottom <= target.top || target.right < target.left) {
+      setNotice('Select a table-like range with headers and data first')
+      return
+    }
+
+    setPivotSource(target)
+    setPivotRowField(target.left)
+    setPivotValueField(Math.min(target.right, target.left + 1))
+    setPivotAggregator('sum')
+    setPivotOpen(true)
+  }
+
+  function createPivot() {
+    const rowHeader = formatted(getCell(sheet, pivotSource.top, pivotRowField), sheet) || colToName(pivotRowField)
+    const valueHeader = formatted(getCell(sheet, pivotSource.top, pivotValueField), sheet) || colToName(pivotValueField)
+    const grouped = new Map<string, { sum: number; count: number }>()
+
+    for (let row = pivotSource.top + 1; row <= pivotSource.bottom; row += 1) {
+      const label = formatted(getCell(sheet, row, pivotRowField), sheet) || '(blank)'
+      const rawValue = displayValue(getCell(sheet, row, pivotValueField).value, sheet)
+      const numeric = Number(rawValue.replace(/[$,%]/g, ''))
+      const current = grouped.get(label) || { sum: 0, count: 0 }
+
+      if (pivotAggregator === 'count') {
+        if (rawValue !== '') current.count += 1
+      } else if (Number.isFinite(numeric)) {
+        current.sum += numeric
+        current.count += 1
+      }
+
+      grouped.set(label, current)
+    }
+
+    const output = createBlankSheet(book.sheets.length + 1)
+    output.name = uniqueSheetName(book.sheets, 'Pivot')
+    output.cells[cellKey(0, 0)] = { value: rowHeader, format: { bold: true, background: '#107c41', color: '#ffffff' } }
+    output.cells[cellKey(0, 1)] = {
+      value: `${pivotAggregator.toUpperCase()} of ${valueHeader}`,
+      format: { bold: true, background: '#107c41', color: '#ffffff' },
+    }
+
+    Array.from(grouped.entries())
+      .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+      .forEach(([label, summary], index) => {
+        const row = index + 1
+        const value = pivotAggregator === 'count'
+          ? summary.count
+          : pivotAggregator === 'average'
+            ? (summary.count ? summary.sum / summary.count : 0)
+            : summary.sum
+        output.cells[cellKey(row, 0)] = { value: label }
+        output.cells[cellKey(row, 1)] = { value: String(value), format: { numberFormat: 'number', decimals: 2 } }
+      })
+
+    output.columnWidths = { '0': 180, '1': 140 }
+
+    mutate((next) => {
+      next.sheets.push(output)
+      next.activeSheetId = output.id
+    }, true)
+
+    setPivotOpen(false)
+    selectPoint({ row: 0, col: 0 })
+    setNotice('Pivot summary created on a new sheet')
   }
 
   function usedRange() {
@@ -1930,7 +2086,7 @@ export default function App() {
       </div>
 
       <nav className="tabs">
-        {(['Home', 'Insert', 'Formulas', 'Data', 'View'] as Tab[]).map((item) => (
+        {(['Home', 'Insert', 'Formulas', 'Data', 'Page Layout', 'Review', 'View'] as Tab[]).map((item) => (
           <button
             key={item}
             className={tab === item ? 'active' : ''}
@@ -2104,6 +2260,9 @@ export default function App() {
 
         {tab === 'Data' && (
           <>
+            <Group name="Analysis">
+              <RibbonButton icon="▤" label="PivotTable" primary onClick={openPivotBuilder} />
+            </Group>
             <Group name="Sort & filter">
               <RibbonButton icon="A↓" label="A → Z" onClick={() => sortSelected(1)} />
               <RibbonButton icon="Z↓" label="Z → A" onClick={() => sortSelected(-1)} />
@@ -2133,6 +2292,66 @@ export default function App() {
               <span>.csv</span>
               <span>.excelmicro.json</span>
             </div>
+          </>
+        )}
+
+        {tab === 'Page Layout' && (
+          <>
+            <Group name="Page setup">
+              <select
+                value={sheet.pageLayout?.orientation || 'portrait'}
+                onChange={(e) => updatePageLayout({ orientation: e.target.value as 'portrait' | 'landscape' })}
+              >
+                <option value="portrait">Portrait</option>
+                <option value="landscape">Landscape</option>
+              </select>
+              <select
+                value={sheet.pageLayout?.paperSize || 'letter'}
+                onChange={(e) => updatePageLayout({ paperSize: e.target.value as 'letter' | 'a4' })}
+              >
+                <option value="letter">Letter</option>
+                <option value="a4">A4</option>
+              </select>
+              <select
+                value={sheet.pageLayout?.margins || 'normal'}
+                onChange={(e) => updatePageLayout({ margins: e.target.value as 'normal' | 'narrow' | 'wide' })}
+              >
+                <option value="normal">Normal margins</option>
+                <option value="narrow">Narrow margins</option>
+                <option value="wide">Wide margins</option>
+              </select>
+            </Group>
+
+            <Group name="Sheet options">
+              <button
+                className={sheet.pageLayout?.printGridlines === false ? '' : 'on'}
+                onClick={() => updatePageLayout({ printGridlines: sheet.pageLayout?.printGridlines === false })}
+              >
+                Print gridlines
+              </button>
+            </Group>
+
+            <Group name="Print">
+              <RibbonButton icon="🖨" label="Print sheet" primary onClick={printSheet} />
+            </Group>
+          </>
+        )}
+
+        {tab === 'Review' && (
+          <>
+            <Group name="Notes">
+              <RibbonButton icon="▰" label={sheet.notes?.[cellKey(point.row, point.col)] ? 'Edit note' : 'New note'} onClick={() => openNote()} />
+              <span className="review-count">{Object.keys(sheet.notes || {}).length} notes</span>
+            </Group>
+
+            <Group name="Protection">
+              <RibbonButton
+                icon={sheet.protected ? '🔒' : '🔓'}
+                label={sheet.protected ? 'Unprotect sheet' : 'Protect sheet'}
+                primary={Boolean(sheet.protected)}
+                onClick={toggleProtection}
+              />
+            </Group>
           </>
         )}
 
@@ -2328,6 +2547,7 @@ export default function App() {
                   )
                   const filterActive = Boolean(sheet.filters?.[String(col)])
                   const validationRule = dataValidationForCell(sheet, row, col)
+                  const note = sheet.notes?.[cellKey(row, col)]
 
                   return (
                     <div
@@ -2340,7 +2560,8 @@ export default function App() {
                         frozenClass +
                         (data.format?.wrap ? ' wrap ' : '') +
                         (validationRule ? ' validation-cell ' : '') +
-                        (tableStyleInfo.header ? ' table-header-cell ' : '')
+                        (tableStyleInfo.header ? ' table-header-cell ' : '') +
+                        (note ? ' has-note ' : '')
                       }
                       style={{
                         fontWeight: data.format?.bold ? 700 : tableStyleInfo.bold ? 700 : 400,
@@ -2391,6 +2612,21 @@ export default function App() {
                         />
                       ) : (
                         <span>{display}</span>
+                      )}
+                      {note && (
+                        <button
+                          className="cell-note-marker"
+                          title={note.text}
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            openNote({ row, col })
+                          }}
+                        />
                       )}
                       {validationRule && !editing && (
                         <button
@@ -2893,6 +3129,14 @@ export default function App() {
           {contextMenu.kind === 'cell' && (
             <>
               <button onClick={() => runContextAction(() => void copySelected())}><span>⧉</span>Copy</button>
+              <button
+                onClick={() => runContextAction(() => openNote({
+                  row: Math.floor(contextMenu.index / COLS),
+                  col: contextMenu.index % COLS,
+                }))}
+              >
+                <span>▰</span>{sheet.notes?.[cellKey(Math.floor(contextMenu.index / COLS), contextMenu.index % COLS)] ? 'Edit note' : 'Add note'}
+              </button>
               <button onClick={() => runContextAction(clearSelected)}><span>⌫</span>Clear contents</button>
               <button onClick={() => runContextAction(clearFormatting)}><span>Tx</span>Clear formatting</button>
               <div className="context-divider" />
