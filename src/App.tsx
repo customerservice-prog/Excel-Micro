@@ -212,6 +212,15 @@ function tableStyleForCell(sheet: SheetData, row: number, col: number) {
   }
 }
 
+function mergeForCell(sheet: SheetData, row: number, col: number) {
+  return (sheet.merges || []).find((merge) => (
+    row >= merge.top &&
+    row <= merge.bottom &&
+    col >= merge.left &&
+    col <= merge.right
+  ))
+}
+
 function dataValidationForCell(sheet: SheetData, row: number, col: number) {
   const rules = sheet.dataValidations || []
   for (let index = rules.length - 1; index >= 0; index -= 1) {
@@ -251,6 +260,7 @@ export default function App() {
   const [versions, setVersions] = useState<VersionSnapshot[]>(loadVersions)
   const [versionOpen, setVersionOpen] = useState(false)
   const [find, setFind] = useState('')
+  const [replaceText, setReplaceText] = useState('')
   const [findOpen, setFindOpen] = useState(false)
   const [chartOpen, setChartOpen] = useState(false)
   const [chartType, setChartType] = useState<ChartType>('bar')
@@ -289,6 +299,9 @@ export default function App() {
   const [pivotRowField, setPivotRowField] = useState(0)
   const [pivotValueField, setPivotValueField] = useState(1)
   const [pivotAggregator, setPivotAggregator] = useState<'sum' | 'count' | 'average'>('sum')
+  const [hyperlinkOpen, setHyperlinkOpen] = useState(false)
+  const [hyperlinkDraft, setHyperlinkDraft] = useState('')
+  const [hyperlinkTarget, setHyperlinkTarget] = useState<Point>({ row: 0, col: 0 })
   const fileRef = useRef<HTMLInputElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const columnResizeRef = useRef<{ col: number; startX: number; startWidth: number } | null>(null)
