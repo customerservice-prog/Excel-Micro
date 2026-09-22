@@ -443,6 +443,21 @@ class Parser {
         return this.callFunction(upper, args)
       }
 
+      const crossSheet = this.crossSheetReference(identifier)
+      if (crossSheet) {
+        if (this.match('colon')) {
+          const end = this.next()
+          if (end.type !== 'identifier') return []
+          const endCrossSheet = this.crossSheetReference(end.value)
+          const endAddress = endCrossSheet ? endCrossSheet.address : end.value
+          if (!this.isCellReference(endAddress)) return []
+          if (endCrossSheet && endCrossSheet.sheet.id !== crossSheet.sheet.id) return '#REF!'
+          return this.rangeValues(crossSheet.address, endAddress, crossSheet.sheet)
+        }
+
+        return this.cellValue(crossSheet.address, crossSheet.sheet)
+      }
+
       if (this.isCellReference(identifier)) {
         if (this.match('colon')) {
           const end = this.next()
@@ -475,6 +490,17 @@ class Parser {
 
   private isCellReference(value: string) {
     return /^\$?[A-Z]+\$?\d+$/i.test(value)
+  }
+
+  private crossSheetReference(value: string) {
+    const bang = value.lastIndexOf('!')
+    if (bang <= 0) return null
+    const sheetName = value.slice(0, bang)
+    const address = value.slice(bang + 1)
+    if (!this.isCellReference(address)) return null
+    const targetSheet = this.sheets.find((item) => item.name.toLowerCase() === sheetName.toLowerCase())
+    if (!targetSheet) return null
+    return { sheet: targetSheet, address }
   }
 
   private normalizedAddress(value: string) {
