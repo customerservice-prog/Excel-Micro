@@ -44,6 +44,16 @@ export interface ConditionalFormatRule {
   color: string
 }
 
+export interface DataValidationRule {
+  id: string
+  top: number
+  bottom: number
+  left: number
+  right: number
+  options: string[]
+  allowBlank?: boolean
+}
+
 export interface SheetData {
   id: string
   name: string
@@ -57,6 +67,7 @@ export interface SheetData {
   filters?: Record<string, SheetFilterRule>
   conditionalFormats?: ConditionalFormatRule[]
   namedRanges?: Record<string, SheetFilterRange>
+  dataValidations?: DataValidationRule[]
 }
 
 export interface WorkbookData {
