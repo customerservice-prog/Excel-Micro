@@ -3381,7 +3381,7 @@ export default function App() {
                     data.format?.strikethrough ? 'line-through' : '',
                   ].filter(Boolean).join(' ')
                   const display = formatted(data, sheet, book.sheets)
-                  const conditionalStyle = conditionalStyleForCell(sheet, row, col, display)
+                  const conditionalStyle = conditionalStyleForCell(sheet, row, col, display, conditionalMetrics)
                   const tableStyleInfo = tableStyleForCell(sheet, row, col)
                   const filterHeader = Boolean(
                     sheet.filterRange &&
@@ -3487,6 +3487,15 @@ export default function App() {
                       onDoubleClick={() => beginEdit()}
                       onContextMenu={(e) => openContextMenu(e, 'cell', row * COLS + col, { row, col })}
                     >
+                      {conditionalStyle.dataBarPercent !== undefined && (
+                        <span
+                          className="conditional-data-bar"
+                          style={{
+                            width: `${Math.max(0, Math.min(100, conditionalStyle.dataBarPercent))}%`,
+                            background: conditionalStyle.dataBarColor,
+                          }}
+                        />
+                      )}
                       {active && editing ? (
                         <input
                           className="cell-input"
@@ -3641,7 +3650,7 @@ export default function App() {
                     const col = printBounds.left + colOffset
                     const data = getCell(sheet, row, col)
                     const tableStyleInfo = tableStyleForCell(sheet, row, col)
-                    const conditionalStyle = conditionalStyleForCell(sheet, row, col, formatted(data, sheet, book.sheets))
+                    const conditionalStyle = conditionalStyleForCell(sheet, row, col, formatted(data, sheet, book.sheets), conditionalMetrics)
                     return (
                       <td
                         key={col}
