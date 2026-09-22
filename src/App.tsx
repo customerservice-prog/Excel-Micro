@@ -4053,6 +4053,11 @@ export default function App() {
               >
                 {object.type === 'image' && object.src ? (
                   <img src={object.src} alt="" />
+                ) : object.type === 'chart' && object.chartRange ? (
+                  <MiniChart
+                    data={chartDataForRange(sheet, object.chartRange, book.sheets)}
+                    type={object.chartType || 'bar'}
+                  />
                 ) : (
                   <div className="sheet-object-text">{object.text}</div>
                 )}
@@ -4212,6 +4217,8 @@ export default function App() {
                   {type === 'bar' ? '▥ Bar' : type === 'line' ? '⌁ Line' : '◔ Pie'}
                 </button>
               ))}
+              <span className="chart-switcher-spacer" />
+              <button className="chart-insert-button" onClick={insertCurrentChart}>＋ Add to worksheet</button>
             </div>
             <Chart data={chart} type={chartType} />
           </div>
