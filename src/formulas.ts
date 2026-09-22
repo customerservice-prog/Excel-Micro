@@ -1,124 +1,562 @@
 import type { SheetData } from './types'
 import { cellKey, parseAddress } from './spreadsheet'
 
-type Resolver = (address: string) => number
+type FormulaValue = number | string | boolean | FormulaValue[]
+export type FormulaResult = number | string | boolean
 
-function splitArgs(source: string): string[] {
-  const args: string[] = []
-  let depth = 0
-  let token = ''
-  for (const char of source) {
-    if (char === '(') depth += 1
-    if (char === ')') depth -= 1
-    if (char === ',' && depth === 0) {
-      args.push(token.trim())
-      token = ''
-    } else token += char
-  }
-  args.push(token.trim())
-  return args
+type TokenType =
+  | 'number'
+  | 'string'
+  | 'identifier'
+  | 'operator'
+  | 'lparen'
+  | 'rparen'
+  | 'comma'
+  | 'colon'
+  | 'eof'
+
+interface Token {
+  type: TokenType
+  value: string
 }
 
-function rangeValues(token: string, sheet: SheetData, stack: Set<string>): number[] | null {
-  const match = /^([A-Z]+\d+):([A-Z]+\d+)$/i.exec(token.trim())
-  if (!match) return null
-  const from = parseAddress(match[1])
-  const to = parseAddress(match[2])
-  if (!from || !to) return []
-  const values: number[] = []
-  for (let row = Math.min(from.row, to.row); row <= Math.max(from.row, to.row); row += 1) {
-    for (let col = Math.min(from.col, to.col); col <= Math.max(from.col, to.col); col += 1) {
-      const raw = sheet.cells[cellKey(row, col)]?.value ?? ''
-      values.push(toNumber(raw, sheet, stack))
+function isNumeric(value: FormulaValue): boolean {
+  if (Array.isArray(value)) return false
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (typeof value === 'boolean') return true
+  if (typeof value === 'string' && value.trim() !== '') return Number.isFinite(Number(value))
+  return false
+}
+
+function toNumber(value: FormulaValue): number {
+  if (Array.isArray(value)) return value.length ? toNumber(value[0]) : 0
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  if (typeof value === 'boolean') return value ? 1 : 0
+  if (typeof value === 'string') {
+    const normalized = value.replace(/[$,%]/g, '').trim()
+    const numeric = Number(normalized)
+    return Number.isFinite(numeric) ? numeric : 0
+  }
+  return 0
+}
+
+function toText(value: FormulaValue): string {
+  if (Array.isArray(value)) return value.map(toText).join('')
+  if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE'
+  return String(value)
+}
+
+function truthy(value: FormulaValue): boolean {
+  if (Array.isArray(value)) return value.some(truthy)
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  const normalized = value.trim().toUpperCase()
+  if (!normalized || normalized === 'FALSE' || normalized === '0') return false
+  return true
+}
+
+function flatten(values: FormulaValue[]): FormulaValue[] {
+  return values.flatMap((value) => Array.isArray(value) ? flatten(value) : [value])
+}
+
+function numericValues(values: FormulaValue[]) {
+  return flatten(values).filter(isNumeric).map(toNumber)
+}
+
+function compare(left: FormulaValue, right: FormulaValue, operator: string): boolean {
+  const numeric = isNumeric(left) && isNumeric(right)
+  const a = numeric ? toNumber(left) : toText(left).toLowerCase()
+  const b = numeric ? toNumber(right) : toText(right).toLowerCase()
+
+  if (operator === '=') return a === b
+  if (operator === '<>' || operator === '!=') return a !== b
+  if (operator === '>') return a > b
+  if (operator === '<') return a < b
+  if (operator === '>=') return a >= b
+  if (operator === '<=') return a <= b
+  return false
+}
+
+class Lexer {
+  private index = 0
+
+  constructor(private readonly source: string) {}
+
+  tokenize(): Token[] {
+    const tokens: Token[] = []
+
+    while (this.index < this.source.length) {
+      const char = this.source[this.index]
+
+      if (/\s/.test(char)) {
+        this.index += 1
+        continue
+      }
+
+      if (char === '"') {
+        tokens.push({ type: 'string', value: this.readString() })
+        continue
+      }
+
+      if (/\d/.test(char) || (char === '.' && /\d/.test(this.source[this.index + 1] || ''))) {
+        tokens.push({ type: 'number', value: this.readNumber() })
+        continue
+      }
+
+      if (/[A-Za-z_$]/.test(char)) {
+        tokens.push({ type: 'identifier', value: this.readIdentifier() })
+        continue
+      }
+
+      if (char === '(') {
+        tokens.push({ type: 'lparen', value: char })
+        this.index += 1
+        continue
+      }
+
+      if (char === ')') {
+        tokens.push({ type: 'rparen', value: char })
+        this.index += 1
+        continue
+      }
+
+      if (char === ',') {
+        tokens.push({ type: 'comma', value: char })
+        this.index += 1
+        continue
+      }
+
+      if (char === ':') {
+        tokens.push({ type: 'colon', value: char })
+        this.index += 1
+        continue
+      }
+
+      const pair = this.source.slice(this.index, this.index + 2)
+      if (['>=', '<=', '<>', '!='].includes(pair)) {
+        tokens.push({ type: 'operator', value: pair })
+        this.index += 2
+        continue
+      }
+
+      if ('+-*/^%&=<>'.includes(char)) {
+        tokens.push({ type: 'operator', value: char })
+        this.index += 1
+        continue
+      }
+
+      this.index += 1
     }
-  }
-  return values
-}
 
-function toNumber(raw: string, sheet: SheetData, stack: Set<string>): number {
-  if (!raw) return 0
-  if (raw.startsWith('=')) {
-    const evaluated = evaluateFormula(raw, sheet, stack)
-    return typeof evaluated === 'number' && Number.isFinite(evaluated) ? evaluated : Number(evaluated) || 0
+    tokens.push({ type: 'eof', value: '' })
+    return tokens
   }
-  const normalized = raw.replace(/[$,%]/g, '')
-  const numeric = Number(normalized)
-  return Number.isFinite(numeric) ? numeric : 0
-}
 
-function evalComparison(source: string, resolver: Resolver): boolean {
-  const operators = ['>=', '<=', '<>', '!=', '=', '>', '<']
-  for (const op of operators) {
-    const index = source.indexOf(op)
-    if (index > -1) {
-      const left = evaluateExpression(source.slice(0, index), resolver)
-      const right = evaluateExpression(source.slice(index + op.length), resolver)
-      if (op === '>=') return left >= right
-      if (op === '<=') return left <= right
-      if (op === '>') return left > right
-      if (op === '<') return left < right
-      if (op === '=') return left === right
-      return left !== right
+  private readString() {
+    this.index += 1
+    let value = ''
+
+    while (this.index < this.source.length) {
+      const char = this.source[this.index]
+
+      if (char === '"' && this.source[this.index + 1] === '"') {
+        value += '"'
+        this.index += 2
+        continue
+      }
+
+      if (char === '"') {
+        this.index += 1
+        break
+      }
+
+      value += char
+      this.index += 1
     }
+
+    return value
   }
-  return evaluateExpression(source, resolver) !== 0
+
+  private readNumber() {
+    const start = this.index
+
+    while (this.index < this.source.length && /[0-9.]/.test(this.source[this.index])) {
+      this.index += 1
+    }
+
+    return this.source.slice(start, this.index)
+  }
+
+  private readIdentifier() {
+    const start = this.index
+
+    while (
+      this.index < this.source.length &&
+      /[A-Za-z0-9_.$]/.test(this.source[this.index])
+    ) {
+      this.index += 1
+    }
+
+    return this.source.slice(start, this.index)
+  }
 }
 
-function evaluateExpression(source: string, resolver: Resolver): number {
-  const withRefs = source.replace(/\b([A-Z]+\d+)\b/gi, (match) => String(resolver(match)))
-  const safe = withRefs.replace(/\s+/g, '')
-  if (!safe || !/^[0-9+\-*/().%]+$/.test(safe)) return Number(safe) || 0
-  try {
-    const result = Function(`"use strict"; return (${safe})`)() as unknown
-    return typeof result === 'number' && Number.isFinite(result) ? result : 0
-  } catch {
+class Parser {
+  private index = 0
+
+  constructor(
+    private readonly tokens: Token[],
+    private readonly sheet: SheetData,
+    private readonly stack: Set<string>,
+  ) {}
+
+  parse(): FormulaValue {
+    return this.parseComparison()
+  }
+
+  private current() {
+    return this.tokens[this.index]
+  }
+
+  private next() {
+    const token = this.tokens[this.index]
+    this.index += 1
+    return token
+  }
+
+  private match(type: TokenType, value?: string) {
+    const token = this.current()
+    if (token.type !== type) return false
+    if (value !== undefined && token.value.toUpperCase() !== value.toUpperCase()) return false
+    this.index += 1
+    return true
+  }
+
+  private parseComparison(): FormulaValue {
+    let left = this.parseConcat()
+
+    while (
+      this.current().type === 'operator' &&
+      ['=', '<>', '!=', '>', '<', '>=', '<='].includes(this.current().value)
+    ) {
+      const operator = this.next().value
+      const right = this.parseConcat()
+      left = compare(left, right, operator)
+    }
+
+    return left
+  }
+
+  private parseConcat(): FormulaValue {
+    let value = this.parseAdditive()
+
+    while (this.match('operator', '&')) {
+      value = toText(value) + toText(this.parseAdditive())
+    }
+
+    return value
+  }
+
+  private parseAdditive(): FormulaValue {
+    let value = this.parseMultiplicative()
+
+    while (
+      this.current().type === 'operator' &&
+      ['+', '-'].includes(this.current().value)
+    ) {
+      const operator = this.next().value
+      const right = this.parseMultiplicative()
+      value = operator === '+'
+        ? toNumber(value) + toNumber(right)
+        : toNumber(value) - toNumber(right)
+    }
+
+    return value
+  }
+
+  private parseMultiplicative(): FormulaValue {
+    let value = this.parsePower()
+
+    while (
+      this.current().type === 'operator' &&
+      ['*', '/'].includes(this.current().value)
+    ) {
+      const operator = this.next().value
+      const right = this.parsePower()
+      const divisor = toNumber(right)
+
+      value = operator === '*'
+        ? toNumber(value) * divisor
+        : divisor === 0
+          ? '#DIV/0!'
+          : toNumber(value) / divisor
+    }
+
+    return value
+  }
+
+  private parsePower(): FormulaValue {
+    let value = this.parseUnary()
+
+    if (this.match('operator', '^')) {
+      value = toNumber(value) ** toNumber(this.parsePower())
+    }
+
+    return value
+  }
+
+  private parseUnary(): FormulaValue {
+    if (this.match('operator', '+')) return toNumber(this.parseUnary())
+    if (this.match('operator', '-')) return -toNumber(this.parseUnary())
+
+    let value = this.parsePrimary()
+
+    while (this.match('operator', '%')) {
+      value = toNumber(value) / 100
+    }
+
+    return value
+  }
+
+  private parsePrimary(): FormulaValue {
+    const token = this.current()
+
+    if (token.type === 'number') {
+      this.next()
+      return Number(token.value)
+    }
+
+    if (token.type === 'string') {
+      this.next()
+      return token.value
+    }
+
+    if (this.match('lparen')) {
+      const value = this.parseComparison()
+      this.match('rparen')
+      return value
+    }
+
+    if (token.type === 'identifier') {
+      this.next()
+      const identifier = token.value
+      const upper = identifier.toUpperCase()
+
+      if (upper === 'TRUE') return true
+      if (upper === 'FALSE') return false
+
+      if (this.match('lparen')) {
+        const args: FormulaValue[] = []
+
+        if (!this.match('rparen')) {
+          do {
+            args.push(this.parseComparison())
+          } while (this.match('comma'))
+
+          this.match('rparen')
+        }
+
+        return this.callFunction(upper, args)
+      }
+
+      if (this.isCellReference(identifier)) {
+        if (this.match('colon')) {
+          const end = this.next()
+          if (end.type === 'identifier' && this.isCellReference(end.value)) {
+            return this.rangeValues(identifier, end.value)
+          }
+          return []
+        }
+
+        return this.cellValue(identifier)
+      }
+
+      return 0
+    }
+
+    this.next()
     return 0
   }
+
+  private isCellReference(value: string) {
+    return /^\$?[A-Z]+\$?\d+$/i.test(value)
+  }
+
+  private normalizedAddress(value: string) {
+    return value.replace(/\$/g, '').toUpperCase()
+  }
+
+  private cellValue(address: string): FormulaValue {
+    const normalized = this.normalizedAddress(address)
+    const point = parseAddress(normalized)
+    if (!point) return 0
+
+    const key = cellKey(point.row, point.col)
+    if (this.stack.has(key)) return '#CIRC!'
+
+    const raw = this.sheet.cells[key]?.value ?? ''
+    if (!raw) return ''
+
+    if (raw.startsWith('=')) {
+      const nextStack = new Set(this.stack)
+      nextStack.add(key)
+      return evaluateFormula(raw, this.sheet, nextStack)
+    }
+
+    const numeric = Number(raw.replace(/[$,%]/g, ''))
+    return Number.isFinite(numeric) && raw.trim() !== '' ? numeric : raw
+  }
+
+  private rangeValues(startAddress: string, endAddress: string): FormulaValue[] {
+    const start = parseAddress(this.normalizedAddress(startAddress))
+    const end = parseAddress(this.normalizedAddress(endAddress))
+    if (!start || !end) return []
+
+    const values: FormulaValue[] = []
+
+    for (let row = Math.min(start.row, end.row); row <= Math.max(start.row, end.row); row += 1) {
+      for (let col = Math.min(start.col, end.col); col <= Math.max(start.col, end.col); col += 1) {
+        values.push(this.cellValue(`${String.fromCharCode(65)}1`) && this.cellByPoint(row, col))
+      }
+    }
+
+    return values
+  }
+
+  private cellByPoint(row: number, col: number): FormulaValue {
+    const key = cellKey(row, col)
+    if (this.stack.has(key)) return '#CIRC!'
+
+    const raw = this.sheet.cells[key]?.value ?? ''
+    if (!raw) return ''
+
+    if (raw.startsWith('=')) {
+      const nextStack = new Set(this.stack)
+      nextStack.add(key)
+      return evaluateFormula(raw, this.sheet, nextStack)
+    }
+
+    const numeric = Number(raw.replace(/[$,%]/g, ''))
+    return Number.isFinite(numeric) && raw.trim() !== '' ? numeric : raw
+  }
+
+  private callFunction(name: string, args: FormulaValue[]): FormulaValue {
+    const values = flatten(args)
+    const nums = numericValues(args)
+
+    if (name === 'SUM') return nums.reduce((sum, value) => sum + value, 0)
+    if (name === 'AVERAGE' || name === 'AVG') return nums.length ? nums.reduce((sum, value) => sum + value, 0) / nums.length : 0
+    if (name === 'MIN') return nums.length ? Math.min(...nums) : 0
+    if (name === 'MAX') return nums.length ? Math.max(...nums) : 0
+    if (name === 'COUNT') return nums.length
+    if (name === 'COUNTA') return values.filter((value) => toText(value) !== '').length
+    if (name === 'PRODUCT') return nums.length ? nums.reduce((product, value) => product * value, 1) : 0
+
+    if (name === 'MEDIAN') {
+      if (!nums.length) return 0
+      const sorted = [...nums].sort((a, b) => a - b)
+      const middle = Math.floor(sorted.length / 2)
+      return sorted.length % 2
+        ? sorted[middle]
+        : (sorted[middle - 1] + sorted[middle]) / 2
+    }
+
+    if (name === 'ROUND') {
+      const digits = Math.trunc(toNumber(args[1] ?? 0))
+      const factor = 10 ** digits
+      return Math.round(toNumber(args[0] ?? 0) * factor) / factor
+    }
+
+    if (name === 'ROUNDUP') {
+      const digits = Math.trunc(toNumber(args[1] ?? 0))
+      const factor = 10 ** digits
+      const value = toNumber(args[0] ?? 0) * factor
+      return (value >= 0 ? Math.ceil(value) : Math.floor(value)) / factor
+    }
+
+    if (name === 'ROUNDDOWN') {
+      const digits = Math.trunc(toNumber(args[1] ?? 0))
+      const factor = 10 ** digits
+      const value = toNumber(args[0] ?? 0) * factor
+      return (value >= 0 ? Math.floor(value) : Math.ceil(value)) / factor
+    }
+
+    if (name === 'ABS') return Math.abs(toNumber(args[0] ?? 0))
+    if (name === 'SQRT') return Math.sqrt(Math.max(0, toNumber(args[0] ?? 0)))
+    if (name === 'POWER') return toNumber(args[0] ?? 0) ** toNumber(args[1] ?? 0)
+
+    if (name === 'MOD') {
+      const divisor = toNumber(args[1] ?? 1)
+      return divisor === 0 ? '#DIV/0!' : toNumber(args[0] ?? 0) % divisor
+    }
+
+    if (name === 'IF') {
+      return truthy(args[0] ?? false)
+        ? args[1] ?? true
+        : args[2] ?? false
+    }
+
+    if (name === 'AND') return values.every(truthy)
+    if (name === 'OR') return values.some(truthy)
+    if (name === 'NOT') return !truthy(args[0] ?? false)
+
+    if (name === 'LEN') return toText(args[0] ?? '').length
+    if (name === 'LOWER') return toText(args[0] ?? '').toLowerCase()
+    if (name === 'UPPER') return toText(args[0] ?? '').toUpperCase()
+    if (name === 'TRIM') return toText(args[0] ?? '').trim().replace(/\s+/g, ' ')
+    if (name === 'LEFT') return toText(args[0] ?? '').slice(0, Math.max(0, Math.trunc(toNumber(args[1] ?? 1))))
+    if (name === 'RIGHT') {
+      const count = Math.max(0, Math.trunc(toNumber(args[1] ?? 1)))
+      return toText(args[0] ?? '').slice(-count)
+    }
+
+    if (name === 'MID') {
+      const text = toText(args[0] ?? '')
+      const start = Math.max(0, Math.trunc(toNumber(args[1] ?? 1)) - 1)
+      const count = Math.max(0, Math.trunc(toNumber(args[2] ?? 0)))
+      return text.slice(start, start + count)
+    }
+
+    if (name === 'CONCAT' || name === 'CONCATENATE') return values.map(toText).join('')
+
+    return `#NAME? ${name}`
+  }
 }
 
-export function evaluateFormula(raw: string, sheet: SheetData, stack = new Set<string>()): number | string {
+export function evaluateFormula(
+  raw: string,
+  sheet: SheetData,
+  stack = new Set<string>(),
+): FormulaResult {
   if (!raw.startsWith('=')) return raw
-  let formula = raw.slice(1).trim()
-  const resolver: Resolver = (address) => {
-    const point = parseAddress(address)
-    if (!point) return 0
-    const key = cellKey(point.row, point.col)
-    if (stack.has(key)) return 0
-    const nextStack = new Set(stack)
-    nextStack.add(key)
-    return toNumber(sheet.cells[key]?.value ?? '', sheet, nextStack)
-  }
 
-  const functionPattern = /(SUM|AVERAGE|AVG|MIN|MAX|COUNT)\(([^()]*)\)/i
-  let guard = 0
-  while (functionPattern.test(formula) && guard < 50) {
-    guard += 1
-    formula = formula.replace(functionPattern, (_full, fnName: string, body: string) => {
-      const values = splitArgs(body).flatMap((arg) => rangeValues(arg, sheet, stack) ?? [evaluateExpression(arg, resolver)])
-      const fn = fnName.toUpperCase()
-      if (fn === 'SUM') return String(values.reduce((sum, value) => sum + value, 0))
-      if (fn === 'AVERAGE' || fn === 'AVG') return String(values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0)
-      if (fn === 'MIN') return String(values.length ? Math.min(...values) : 0)
-      if (fn === 'MAX') return String(values.length ? Math.max(...values) : 0)
-      return String(values.filter((value) => Number.isFinite(value)).length)
-    })
-  }
+  try {
+    const tokens = new Lexer(raw.slice(1)).tokenize()
+    const result = new Parser(tokens, sheet, stack).parse()
 
-  const ifMatch = /^IF\((.*)\)$/i.exec(formula)
-  if (ifMatch) {
-    const args = splitArgs(ifMatch[1])
-    if (args.length >= 3) {
-      const branch = evalComparison(args[0], resolver) ? args[1] : args[2]
-      if (/^".*"$/.test(branch.trim())) return branch.trim().slice(1, -1)
-      return evaluateExpression(branch, resolver)
+    if (Array.isArray(result)) {
+      const first = result[0]
+      if (Array.isArray(first)) return ''
+      return first ?? ''
     }
-  }
 
-  return evaluateExpression(formula, resolver)
+    return result
+  } catch {
+    return '#ERROR!'
+  }
 }
 
 export function displayValue(raw: string, sheet: SheetData): string {
   if (!raw.startsWith('=')) return raw
+
   const result = evaluateFormula(raw, sheet)
-  return typeof result === 'number' ? String(Math.round((result + Number.EPSILON) * 1e10) / 1e10) : String(result)
+
+  if (typeof result === 'boolean') return result ? 'TRUE' : 'FALSE'
+
+  if (typeof result === 'number') {
+    if (!Number.isFinite(result)) return '#NUM!'
+    return String(Math.round((result + Number.EPSILON) * 1e10) / 1e10)
+  }
+
+  return String(result)
 }
