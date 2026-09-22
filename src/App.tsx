@@ -28,6 +28,7 @@ import type {
   ConditionalFormatOperator,
   DataValidationErrorStyle,
   DataValidationOperator,
+  DataValidationRule,
   DataValidationType,
   FilterOperator,
   NumberFormat,
@@ -268,6 +269,69 @@ function dataValidationForCell(sheet: SheetData, row: number, col: number) {
     }
   }
   return undefined
+}
+
+function validationAllowsValue(rule: DataValidationRule | undefined, value: string) {
+  if (!rule) return true
+  const trimmed = value.trim()
+  if (rule.allowBlank && trimmed === '') return true
+
+  const type = rule.type || 'list'
+  if (type === 'list') {
+    return (rule.options || []).some((option) => option === value)
+  }
+
+  const operator = rule.operator || 'between'
+  let candidate: number
+  let minimum: number
+  let maximum: number
+
+  if (type === 'date') {
+    const parsed = Number.isFinite(Number(trimmed))
+      ? Number(trimmed)
+      : Date.parse(trimmed)
+    candidate = parsed
+    minimum = rule.minimum && Number.isFinite(Number(rule.minimum))
+      ? Number(rule.minimum)
+      : Date.parse(rule.minimum || '')
+    maximum = rule.maximum && Number.isFinite(Number(rule.maximum))
+      ? Number(rule.maximum)
+      : Date.parse(rule.maximum || '')
+  } else if (type === 'textLength') {
+    candidate = value.length
+    minimum = Number(rule.minimum)
+    maximum = Number(rule.maximum)
+  } else {
+    candidate = Number(trimmed)
+    minimum = Number(rule.minimum)
+    maximum = Number(rule.maximum)
+    if (!Number.isFinite(candidate)) return false
+    if (type === 'whole' && !Number.isInteger(candidate)) return false
+  }
+
+  if (!Number.isFinite(candidate)) return false
+  if (operator === 'equalTo') return candidate === minimum
+  if (operator === 'greaterThan') return candidate > minimum
+  if (operator === 'lessThan') return candidate < minimum
+  return candidate >= minimum && candidate <= maximum
+}
+
+function validationDescription(rule: DataValidationRule) {
+  const type = rule.type || 'list'
+  if (type === 'list') return 'Choose one of: ' + (rule.options || []).join(', ')
+  const operator = rule.operator || 'between'
+  const label = type === 'whole'
+    ? 'whole number'
+    : type === 'decimal'
+      ? 'number'
+      : type === 'date'
+        ? 'date'
+        : 'text length'
+
+  if (operator === 'between') return 'Enter a ' + label + ' between ' + (rule.minimum || '') + ' and ' + (rule.maximum || '')
+  if (operator === 'equalTo') return 'Enter a ' + label + ' equal to ' + (rule.minimum || '')
+  if (operator === 'greaterThan') return 'Enter a ' + label + ' greater than ' + (rule.minimum || '')
+  return 'Enter a ' + label + ' less than ' + (rule.minimum || '')
 }
 
 function uniqueSheetName(sheets: SheetData[], base: string) {
