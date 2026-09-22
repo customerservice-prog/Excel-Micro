@@ -1433,8 +1433,62 @@ export default function App() {
       return result
     }
 
-    if (axis === 'row') s.rowHeights = shiftDimensionMap(s.rowHeights, ROWS)
-    else s.columnWidths = shiftDimensionMap(s.columnWidths, COLS)
+    const shiftHiddenMap = (
+      source: Record<string, boolean> | undefined,
+      max: number,
+    ) => {
+      const result: Record<string, boolean> = {}
+      Object.entries(source || {}).forEach(([key, value]) => {
+        let position = Number(key)
+        if (delta === -1 && position === index) return
+        if (delta === 1 && position >= index) position += 1
+        if (delta === -1 && position > index) position -= 1
+        if (position >= 0 && position < max && value) result[String(position)] = true
+      })
+      return result
+    }
+
+    if (axis === 'row') {
+      s.rowHeights = shiftDimensionMap(s.rowHeights, ROWS)
+      s.hiddenRows = shiftHiddenMap(s.hiddenRows, ROWS)
+    } else {
+      s.columnWidths = shiftDimensionMap(s.columnWidths, COLS)
+      s.hiddenColumns = shiftHiddenMap(s.hiddenColumns, COLS)
+    }
+
+    s.merges = (s.merges || []).flatMap((merge) => {
+      const nextMerge = { ...merge }
+
+      if (axis === 'row') {
+        if (delta === 1 && index <= nextMerge.top) {
+          nextMerge.top += 1
+          nextMerge.bottom += 1
+        } else if (delta === 1 && index <= nextMerge.bottom) {
+          nextMerge.bottom = Math.min(ROWS - 1, nextMerge.bottom + 1)
+        } else if (delta === -1 && index < nextMerge.top) {
+          nextMerge.top = Math.max(0, nextMerge.top - 1)
+          nextMerge.bottom = Math.max(nextMerge.top, nextMerge.bottom - 1)
+        } else if (delta === -1 && index <= nextMerge.bottom) {
+          if (nextMerge.top === nextMerge.bottom) return []
+          nextMerge.bottom -= 1
+        }
+      } else {
+        if (delta === 1 && index <= nextMerge.left) {
+          nextMerge.left += 1
+          nextMerge.right += 1
+        } else if (delta === 1 && index <= nextMerge.right) {
+          nextMerge.right = Math.min(COLS - 1, nextMerge.right + 1)
+        } else if (delta === -1 && index < nextMerge.left) {
+          nextMerge.left = Math.max(0, nextMerge.left - 1)
+          nextMerge.right = Math.max(nextMerge.left, nextMerge.right - 1)
+        } else if (delta === -1 && index <= nextMerge.right) {
+          if (nextMerge.left === nextMerge.right) return []
+          nextMerge.right -= 1
+        }
+      }
+
+      return [nextMerge]
+    })
 
     if (s.filterRange) {
       const filterRange = s.filterRange
@@ -2059,6 +2113,34 @@ export default function App() {
       activeSheet(next).conditionalFormats = []
     })
     setNotice('Conditional formatting cleared')
+  }
+
+  function hideSelectedRows() {
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.hiddenRows ||= {}
+      for (let row = range.top; row <= range.bottom; row += 1) s.hiddenRows[String(row)] = true
+    })
+    setNotice('Selected rows hidden')
+  }
+
+  function unhideAllRows() {
+    mutate((next) => { activeSheet(next).hiddenRows = {} })
+    setNotice('All rows unhidden')
+  }
+
+  function hideSelectedColumns() {
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.hiddenColumns ||= {}
+      for (let col = range.left; col <= range.right; col += 1) s.hiddenColumns[String(col)] = true
+    })
+    setNotice('Selected columns hidden')
+  }
+
+  function unhideAllColumns() {
+    mutate((next) => { activeSheet(next).hiddenColumns = {} })
+    setNotice('All columns unhidden')
   }
 
   function toggleSheetView(key: 'showGridlines' | 'freezeTopRow' | 'freezeFirstColumn') {
