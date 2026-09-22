@@ -99,6 +99,7 @@ export interface SheetData {
   id: string
   name: string
   cells: Record<string, CellData>
+  hidden?: boolean
   columnWidths?: Record<string, number>
   rowHeights?: Record<string, number>
   showGridlines?: boolean
