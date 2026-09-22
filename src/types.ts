@@ -32,7 +32,7 @@ export interface CellData {
   checkbox?: boolean
 }
 
-export type SheetObjectType = 'image' | 'textBox' | 'shape'
+export type SheetObjectType = 'image' | 'textBox' | 'shape' | 'chart'
 export interface SheetObject {
   id: string
   type: SheetObjectType
@@ -44,6 +44,8 @@ export interface SheetObject {
   text?: string
   fill?: string
   border?: string
+  chartType?: 'bar' | 'line' | 'pie'
+  chartRange?: SheetFilterRange
 }
 
 export type FilterOperator = 'contains' | 'equals' | 'greaterThan' | 'lessThan' | 'notBlank'
