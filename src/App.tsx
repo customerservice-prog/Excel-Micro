@@ -3092,6 +3092,39 @@ export default function App() {
     fontSize: `${Math.max(10, 12 * zoom / 100)}px`,
   } as CSSProperties
 
+  useEffect(() => {
+    const node = gridRef.current
+    if (!node) return
+
+    const rowTop = rowMetrics.offsets[point.row] ?? headerHeight
+    const rowBottom = rowTop + (rowMetrics.sizes[point.row] || headerHeight)
+    const colLeft = columnMetrics.offsets[point.col] ?? 46
+    const colRight = colLeft + (columnMetrics.sizes[point.col] || DEFAULT_COLUMN_WIDTH)
+
+    const visibleTop = node.scrollTop + headerHeight
+    const visibleBottom = node.scrollTop + node.clientHeight - 8
+    const visibleLeft = node.scrollLeft + 46
+    const visibleRight = node.scrollLeft + node.clientWidth - 8
+
+    if (rowTop < visibleTop) {
+      node.scrollTop = Math.max(0, rowTop - headerHeight)
+    } else if (rowBottom > visibleBottom) {
+      node.scrollTop = Math.max(0, rowBottom - node.clientHeight + 12)
+    }
+
+    if (colLeft < visibleLeft) {
+      node.scrollLeft = Math.max(0, colLeft - 46)
+    } else if (colRight > visibleRight) {
+      node.scrollLeft = Math.max(0, colRight - node.clientWidth + 12)
+    }
+  }, [
+    columnMetrics,
+    headerHeight,
+    point.col,
+    point.row,
+    rowMetrics,
+  ])
+
   const pageLayout = {
     orientation: 'portrait' as const,
     paperSize: 'letter' as const,
