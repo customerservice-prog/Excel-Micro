@@ -3164,9 +3164,9 @@ export default function App() {
       </div>
 
       {findOpen && (
-        <div className="find-box">
+        <div className="find-box find-replace-box">
           <div className="find-title">
-            <strong>Find</strong>
+            <strong>Find & Replace</strong>
             <button onClick={() => setFindOpen(false)}>×</button>
           </div>
           <input
@@ -3180,6 +3180,19 @@ export default function App() {
             }}
           />
           <button className="find-next" onClick={findNext}>Find next</button>
+          <input
+            placeholder="Replace with"
+            value={replaceText}
+            onChange={(e) => setReplaceText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') replaceMatch(false)
+              if (e.key === 'Escape') setFindOpen(false)
+            }}
+          />
+          <div className="replace-actions">
+            <button onClick={() => replaceMatch(false)}>Replace</button>
+            <button onClick={() => replaceMatch(true)}>Replace all</button>
+          </div>
         </div>
       )}
 
@@ -3697,6 +3710,42 @@ export default function App() {
         </div>
       )}
 
+      {hyperlinkOpen && (
+        <div className="overlay panel-overlay" onMouseDown={() => setHyperlinkOpen(false)}>
+          <div className="rule-card hyperlink-card" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="rule-card-header">
+              <div>
+                <span className="eyebrow">HYPERLINK</span>
+                <h2>Link ${pointToAddress(hyperlinkTarget)}</h2>
+                <p>Add a web address to the selected cell.</p>
+              </div>
+              <button onClick={() => setHyperlinkOpen(false)}>×</button>
+            </div>
+            <div className="rule-form">
+              <label>
+                Address
+                <input
+                  autoFocus
+                  value={hyperlinkDraft}
+                  onChange={(e) => setHyperlinkDraft(e.target.value)}
+                  placeholder="https://example.com"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveHyperlink()
+                    if (e.key === 'Escape') setHyperlinkOpen(false)
+                  }}
+                />
+              </label>
+            </div>
+            <div className="rule-actions">
+              <button className="secondary" onClick={() => setHyperlinkDraft('')}>Remove link</button>
+              <span className="spacer" />
+              <button className="secondary" onClick={() => setHyperlinkOpen(false)}>Cancel</button>
+              <button className="primary-action" onClick={saveHyperlink}>Save link</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {contextMenu && (
         <div
           className="context-menu"
@@ -3714,6 +3763,14 @@ export default function App() {
           {contextMenu.kind === 'cell' && (
             <>
               <button onClick={() => runContextAction(() => void copySelected())}><span>⧉</span>Copy</button>
+              <button
+                onClick={() => runContextAction(() => openHyperlink({
+                  row: Math.floor(contextMenu.index / COLS),
+                  col: contextMenu.index % COLS,
+                }))}
+              >
+                <span>↗</span>{getCell(sheet, Math.floor(contextMenu.index / COLS), contextMenu.index % COLS).hyperlink ? 'Edit hyperlink' : 'Add hyperlink'}
+              </button>
               <button
                 onClick={() => runContextAction(() => openNote({
                   row: Math.floor(contextMenu.index / COLS),
