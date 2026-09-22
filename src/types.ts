@@ -20,6 +20,30 @@ export interface CellData {
   format?: CellFormat
 }
 
+export type FilterOperator = 'contains' | 'equals' | 'greaterThan' | 'lessThan' | 'notBlank'
+export interface SheetFilterRule {
+  operator: FilterOperator
+  value?: string
+}
+export interface SheetFilterRange {
+  top: number
+  bottom: number
+  left: number
+  right: number
+}
+export type ConditionalFormatOperator = 'greaterThan' | 'lessThan' | 'equals' | 'contains' | 'notBlank'
+export interface ConditionalFormatRule {
+  id: string
+  top: number
+  bottom: number
+  left: number
+  right: number
+  operator: ConditionalFormatOperator
+  value?: string
+  background: string
+  color: string
+}
+
 export interface SheetData {
   id: string
   name: string
@@ -29,6 +53,9 @@ export interface SheetData {
   showGridlines?: boolean
   freezeTopRow?: boolean
   freezeFirstColumn?: boolean
+  filterRange?: SheetFilterRange
+  filters?: Record<string, SheetFilterRule>
+  conditionalFormats?: ConditionalFormatRule[]
 }
 
 export interface WorkbookData {
