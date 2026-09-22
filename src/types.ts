@@ -5,10 +5,14 @@ export interface CellFormat {
   bold?: boolean
   italic?: boolean
   underline?: boolean
+  strikethrough?: boolean
   align?: Align
   color?: string
   background?: string
   numberFormat?: NumberFormat
+  fontSize?: number
+  wrap?: boolean
+  decimals?: number
 }
 
 export interface CellData {
@@ -20,6 +24,10 @@ export interface SheetData {
   id: string
   name: string
   cells: Record<string, CellData>
+  columnWidths?: Record<string, number>
+  showGridlines?: boolean
+  freezeTopRow?: boolean
+  freezeFirstColumn?: boolean
 }
 
 export interface WorkbookData {
