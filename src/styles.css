@@ -816,6 +816,35 @@ body.is-row-resizing * {
   font-size: 7px;
 }
 
+.merged-origin {
+  overflow: hidden;
+  align-items: center;
+  justify-content: flex-start;
+  background-clip: border-box !important;
+}
+
+.merged-covered {
+  pointer-events: none;
+}
+
+.hyperlink-cell > span,
+.cell-hyperlink {
+  color: #0563c1;
+  text-decoration: underline;
+}
+
+.cell-hyperlink {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cell-hyperlink:visited {
+  color: #954f72;
+}
+
 .cell.active {
   z-index: 7;
   overflow: visible;
@@ -988,6 +1017,30 @@ body.is-row-resizing * {
 
 .status-view {
   color: #727272;
+}
+
+.find-replace-box {
+  width: 360px;
+}
+
+.find-replace-box .replace-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.find-replace-box .replace-actions button {
+  height: 32px;
+  border: 1px solid #c9c9c9;
+  border-radius: 5px;
+  padding: 0 10px;
+  background: white;
+  color: #333;
+  cursor: pointer;
+}
+
+.find-replace-box .replace-actions button:hover {
+  background: #f0f0f0;
 }
 
 .find-box {
@@ -1460,6 +1513,10 @@ body.is-row-resizing * {
 .validation-blank {
   color: #888;
   font-style: italic;
+}
+
+.hyperlink-card {
+  width: min(520px, 95vw);
 }
 
 .rule-card {
