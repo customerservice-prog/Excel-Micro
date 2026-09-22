@@ -22,11 +22,22 @@ import {
   shiftFormulaForStructure,
   toCsv,
 } from './spreadsheet'
-import type { CellData, CellFormat, NumberFormat, Point, Selection, SheetData, WorkbookData } from './types'
+import type {
+  CellData,
+  CellFormat,
+  ConditionalFormatOperator,
+  FilterOperator,
+  NumberFormat,
+  Point,
+  Selection,
+  SheetData,
+  WorkbookData,
+} from './types'
 
 const STORAGE_KEY = 'excel-micro-workbook-v1'
 type Tab = 'Home' | 'Insert' | 'Formulas' | 'Data' | 'View'
 type ContextMenuState = { x: number; y: number; kind: 'cell' | 'row' | 'col'; index: number }
+type FilterEditorState = { col: number; operator: FilterOperator; value: string }
 
 function newWorkbook(): WorkbookData {
   const sheet = createBlankSheet(1)
@@ -98,6 +109,48 @@ function formatted(cell: CellData, sheet: SheetData) {
   return value
 }
 
+function matchesCondition(
+  text: string,
+  operator: FilterOperator | ConditionalFormatOperator,
+  expected = '',
+) {
+  const source = text.trim()
+  const sourceLower = source.toLowerCase()
+  const expectedLower = expected.trim().toLowerCase()
+  const sourceNumber = Number(source.replace(/[$,%]/g, ''))
+  const expectedNumber = Number(expected.replace(/[$,%]/g, ''))
+
+  if (operator === 'notBlank') return source !== ''
+  if (operator === 'contains') return sourceLower.includes(expectedLower)
+  if (operator === 'equals') {
+    if (Number.isFinite(sourceNumber) && Number.isFinite(expectedNumber) && expected.trim() !== '') {
+      return sourceNumber === expectedNumber
+    }
+    return sourceLower === expectedLower
+  }
+  if (operator === 'greaterThan') {
+    return Number.isFinite(sourceNumber) && Number.isFinite(expectedNumber) && sourceNumber > expectedNumber
+  }
+  if (operator === 'lessThan') {
+    return Number.isFinite(sourceNumber) && Number.isFinite(expectedNumber) && sourceNumber < expectedNumber
+  }
+  return true
+}
+
+function conditionalStyleForCell(sheet: SheetData, row: number, col: number, value: string) {
+  let background: string | undefined
+  let color: string | undefined
+
+  for (const rule of sheet.conditionalFormats || []) {
+    if (row < rule.top || row > rule.bottom || col < rule.left || col > rule.right) continue
+    if (!matchesCondition(value, rule.operator, rule.value || '')) continue
+    background = rule.background
+    color = rule.color
+  }
+
+  return { background, color }
+}
+
 function uniqueSheetName(sheets: SheetData[], base: string) {
   const existing = new Set(sheets.map((sheet) => sheet.name.toLowerCase()))
   let candidate = base
@@ -131,6 +184,12 @@ export default function App() {
   const [saveStatus, setSaveStatus] = useState('Saved')
   const [notice, setNotice] = useState('')
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  const [filterEditor, setFilterEditor] = useState<FilterEditorState | null>(null)
+  const [conditionalOpen, setConditionalOpen] = useState(false)
+  const [conditionalOperator, setConditionalOperator] = useState<ConditionalFormatOperator>('greaterThan')
+  const [conditionalValue, setConditionalValue] = useState('')
+  const [conditionalBackground, setConditionalBackground] = useState('#fff2cc')
+  const [conditionalColor, setConditionalColor] = useState('#7f6000')
   const fileRef = useRef<HTMLInputElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const columnResizeRef = useRef<{ col: number; startX: number; startWidth: number } | null>(null)
@@ -143,6 +202,25 @@ export default function App() {
   const point = selection.focus
   const cell = getCell(sheet, point.row, point.col)
   const range = normalizeSelection(selection)
+
+  const hiddenRows = useMemo(() => {
+    const hidden = new Set<number>()
+    const filterRange = sheet.filterRange
+    const filters = sheet.filters || {}
+    if (!filterRange || !Object.keys(filters).length) return hidden
+
+    for (let row = filterRange.top + 1; row <= filterRange.bottom; row += 1) {
+      const visible = Object.entries(filters).every(([colText, rule]) => {
+        const col = Number(colText)
+        const value = formatted(getCell(sheet, row, col), sheet)
+        return matchesCondition(value, rule.operator, rule.value || '')
+      })
+
+      if (!visible) hidden.add(row)
+    }
+
+    return hidden
+  }, [sheet])
 
   useEffect(() => {
     setSaveStatus('Saving…')
@@ -966,6 +1044,80 @@ export default function App() {
 
     if (axis === 'row') s.rowHeights = shiftDimensionMap(s.rowHeights, ROWS)
     else s.columnWidths = shiftDimensionMap(s.columnWidths, COLS)
+
+    if (s.filterRange) {
+      const filterRange = s.filterRange
+
+      if (axis === 'row') {
+        if (delta === 1 && index <= filterRange.top) {
+          filterRange.top += 1
+          filterRange.bottom += 1
+        } else if (delta === 1 && index <= filterRange.bottom) {
+          filterRange.bottom = Math.min(ROWS - 1, filterRange.bottom + 1)
+        } else if (delta === -1 && index < filterRange.top) {
+          filterRange.top = Math.max(0, filterRange.top - 1)
+          filterRange.bottom = Math.max(filterRange.top, filterRange.bottom - 1)
+        } else if (delta === -1 && index <= filterRange.bottom) {
+          filterRange.bottom = Math.max(filterRange.top, filterRange.bottom - 1)
+        }
+      } else {
+        if (delta === 1 && index <= filterRange.left) {
+          filterRange.left += 1
+          filterRange.right += 1
+        } else if (delta === 1 && index <= filterRange.right) {
+          filterRange.right = Math.min(COLS - 1, filterRange.right + 1)
+        } else if (delta === -1 && index < filterRange.left) {
+          filterRange.left = Math.max(0, filterRange.left - 1)
+          filterRange.right = Math.max(filterRange.left, filterRange.right - 1)
+        } else if (delta === -1 && index <= filterRange.right) {
+          filterRange.right = Math.max(filterRange.left, filterRange.right - 1)
+        }
+
+        const shiftedFilters: NonNullable<SheetData['filters']> = {}
+        Object.entries(s.filters || {}).forEach(([key, rule]) => {
+          let col = Number(key)
+          if (delta === -1 && col === index) return
+          if (delta === 1 && col >= index) col += 1
+          if (delta === -1 && col > index) col -= 1
+          if (col >= 0 && col < COLS) shiftedFilters[String(col)] = rule
+        })
+        s.filters = shiftedFilters
+      }
+    }
+
+    s.conditionalFormats = (s.conditionalFormats || []).flatMap((rule) => {
+      const nextRule = { ...rule }
+
+      if (axis === 'row') {
+        if (delta === 1 && index <= nextRule.top) {
+          nextRule.top += 1
+          nextRule.bottom += 1
+        } else if (delta === 1 && index <= nextRule.bottom) {
+          nextRule.bottom = Math.min(ROWS - 1, nextRule.bottom + 1)
+        } else if (delta === -1 && index < nextRule.top) {
+          nextRule.top = Math.max(0, nextRule.top - 1)
+          nextRule.bottom = Math.max(nextRule.top, nextRule.bottom - 1)
+        } else if (delta === -1 && index <= nextRule.bottom) {
+          if (nextRule.top === nextRule.bottom) return []
+          nextRule.bottom -= 1
+        }
+      } else {
+        if (delta === 1 && index <= nextRule.left) {
+          nextRule.left += 1
+          nextRule.right += 1
+        } else if (delta === 1 && index <= nextRule.right) {
+          nextRule.right = Math.min(COLS - 1, nextRule.right + 1)
+        } else if (delta === -1 && index < nextRule.left) {
+          nextRule.left = Math.max(0, nextRule.left - 1)
+          nextRule.right = Math.max(nextRule.left, nextRule.right - 1)
+        } else if (delta === -1 && index <= nextRule.right) {
+          if (nextRule.left === nextRule.right) return []
+          nextRule.right -= 1
+        }
+      }
+
+      return [nextRule]
+    })
   }
 
   function insertRow() {
@@ -994,6 +1146,137 @@ export default function App() {
     mutate((next) => restructureSheet(activeSheet(next), 'col', index, -1))
     selectPoint({ row: point.row, col: Math.min(index, COLS - 1) })
     setNotice(`Deleted column ${colToName(index)}`)
+  }
+
+  function usedRange() {
+    let top = ROWS - 1
+    let bottom = 0
+    let left = COLS - 1
+    let right = 0
+    let found = false
+
+    Object.keys(sheet.cells).forEach((key) => {
+      const [row, col] = key.split(':').map(Number)
+      found = true
+      top = Math.min(top, row)
+      bottom = Math.max(bottom, row)
+      left = Math.min(left, col)
+      right = Math.max(right, col)
+    })
+
+    if (!found) return { top: 0, bottom: 1, left: 0, right: 0 }
+    return {
+      top,
+      bottom: Math.max(top + 1, bottom),
+      left,
+      right,
+    }
+  }
+
+  function toggleFilterRange() {
+    if (sheet.filterRange) {
+      mutate((next) => {
+        const s = activeSheet(next)
+        delete s.filterRange
+        s.filters = {}
+      })
+      setFilterEditor(null)
+      setNotice('Filters removed')
+      return
+    }
+
+    const selected = normalizeSelection(selection)
+    const target = selected.bottom > selected.top ? selected : usedRange()
+
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.filterRange = {
+        top: target.top,
+        bottom: Math.min(ROWS - 1, target.bottom),
+        left: target.left,
+        right: target.right,
+      }
+      s.filters = {}
+    })
+
+    setNotice('Filter headers enabled')
+  }
+
+  function openFilterEditor(col: number) {
+    const rule = sheet.filters?.[String(col)]
+    setFilterEditor({
+      col,
+      operator: rule?.operator || 'contains',
+      value: rule?.value || '',
+    })
+  }
+
+  function applyFilterEditor() {
+    if (!filterEditor) return
+
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.filters ||= {}
+      s.filters[String(filterEditor.col)] = {
+        operator: filterEditor.operator,
+        value: filterEditor.operator === 'notBlank' ? '' : filterEditor.value,
+      }
+    })
+
+    setFilterEditor(null)
+    setNotice(`Filter applied to ${colToName(filterEditor.col)}`)
+  }
+
+  function clearFilterColumn(col: number) {
+    mutate((next) => {
+      const s = activeSheet(next)
+      if (!s.filters) return
+      delete s.filters[String(col)]
+    })
+    setFilterEditor(null)
+    setNotice(`Filter cleared from ${colToName(col)}`)
+  }
+
+  function clearAllFilters() {
+    mutate((next) => {
+      activeSheet(next).filters = {}
+    })
+    setNotice('Filter conditions cleared')
+  }
+
+  function addConditionalFormat() {
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.conditionalFormats ||= []
+      s.conditionalFormats.push({
+        id: crypto.randomUUID(),
+        top: range.top,
+        bottom: range.bottom,
+        left: range.left,
+        right: range.right,
+        operator: conditionalOperator,
+        value: conditionalOperator === 'notBlank' ? '' : conditionalValue,
+        background: conditionalBackground,
+        color: conditionalColor,
+      })
+    })
+
+    setConditionalOpen(false)
+    setNotice('Conditional formatting rule added')
+  }
+
+  function removeConditionalFormat(id: string) {
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.conditionalFormats = (s.conditionalFormats || []).filter((rule) => rule.id !== id)
+    })
+  }
+
+  function clearConditionalFormats() {
+    mutate((next) => {
+      activeSheet(next).conditionalFormats = []
+    })
+    setNotice('Conditional formatting cleared')
   }
 
   function toggleSheetView(key: 'showGridlines' | 'freezeTopRow' | 'freezeFirstColumn') {
@@ -1406,9 +1689,16 @@ export default function App() {
 
         {tab === 'Data' && (
           <>
-            <Group name="Sort">
+            <Group name="Sort & filter">
               <RibbonButton icon="A↓" label="A → Z" onClick={() => sortSelected(1)} />
               <RibbonButton icon="Z↓" label="Z → A" onClick={() => sortSelected(-1)} />
+              <RibbonButton icon="▼" label={sheet.filterRange ? 'Remove filter' : 'Filter'} primary={Boolean(sheet.filterRange)} onClick={toggleFilterRange} />
+              <RibbonButton icon="×" label="Clear filters" onClick={clearAllFilters} />
+            </Group>
+
+            <Group name="Conditional formatting">
+              <RibbonButton icon="▦" label="New rule" onClick={() => setConditionalOpen(true)} />
+              <RibbonButton icon="×" label="Clear rules" onClick={clearConditionalFormats} />
             </Group>
 
             <Group name="Import & export">
@@ -1555,7 +1845,7 @@ export default function App() {
             ))}
 
             {Array.from({ length: ROWS }, (_, row) => (
-              <div className="grid-row" key={'r' + row}>
+              <div className={'grid-row ' + (hiddenRows.has(row) ? 'filtered-out' : '')} key={'r' + row}>
                 <div
                   className={
                     'row-head ' +
@@ -1607,6 +1897,15 @@ export default function App() {
                     data.format?.underline ? 'underline' : '',
                     data.format?.strikethrough ? 'line-through' : '',
                   ].filter(Boolean).join(' ')
+                  const display = formatted(data, sheet)
+                  const conditionalStyle = conditionalStyleForCell(sheet, row, col, display)
+                  const filterHeader = Boolean(
+                    sheet.filterRange &&
+                    row === sheet.filterRange.top &&
+                    col >= sheet.filterRange.left &&
+                    col <= sheet.filterRange.right
+                  )
+                  const filterActive = Boolean(sheet.filters?.[String(col)])
 
                   return (
                     <div
@@ -1624,8 +1923,8 @@ export default function App() {
                         fontStyle: data.format?.italic ? 'italic' : 'normal',
                         textDecoration: decoration || 'none',
                         textAlign: data.format?.align || 'left',
-                        color: data.format?.color,
-                        background: data.format?.background,
+                        color: conditionalStyle.color || data.format?.color,
+                        background: conditionalStyle.background || data.format?.background,
                         fontSize: data.format?.fontSize ? `${data.format.fontSize}px` : undefined,
                       }}
                       onMouseDown={(e) => {
@@ -1667,7 +1966,24 @@ export default function App() {
                           }}
                         />
                       ) : (
-                        <span>{formatted(data, sheet)}</span>
+                        <span>{display}</span>
+                      )}
+                      {filterHeader && (
+                        <button
+                          className={'cell-filter-button ' + (filterActive ? 'is-active' : '')}
+                          title={filterActive ? 'Filter active' : 'Filter this column'}
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            openFilterEditor(col)
+                          }}
+                        >
+                          {filterActive ? '●' : '▼'}
+                        </button>
                       )}
                     </div>
                   )
@@ -1752,6 +2068,126 @@ export default function App() {
               <button onClick={() => setChartOpen(false)}>×</button>
             </div>
             <Chart data={chart} />
+          </div>
+        </div>
+      )}
+
+      {filterEditor && (
+        <div className="overlay panel-overlay" onMouseDown={() => setFilterEditor(null)}>
+          <div className="rule-card filter-card" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="rule-card-header">
+              <div>
+                <span className="eyebrow">FILTER</span>
+                <h2>Column {colToName(filterEditor.col)}</h2>
+                <p>Show rows that match this condition.</p>
+              </div>
+              <button onClick={() => setFilterEditor(null)}>×</button>
+            </div>
+            <div className="rule-form">
+              <label>
+                Condition
+                <select
+                  value={filterEditor.operator}
+                  onChange={(e) => setFilterEditor((current) => current && ({ ...current, operator: e.target.value as FilterOperator }))}
+                >
+                  <option value="contains">Contains</option>
+                  <option value="equals">Equals</option>
+                  <option value="greaterThan">Greater than</option>
+                  <option value="lessThan">Less than</option>
+                  <option value="notBlank">Is not blank</option>
+                </select>
+              </label>
+              {filterEditor.operator !== 'notBlank' && (
+                <label>
+                  Value
+                  <input
+                    autoFocus
+                    value={filterEditor.value}
+                    onChange={(e) => setFilterEditor((current) => current && ({ ...current, value: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') applyFilterEditor()
+                      if (e.key === 'Escape') setFilterEditor(null)
+                    }}
+                  />
+                </label>
+              )}
+            </div>
+            <div className="rule-actions">
+              <button className="secondary" onClick={() => clearFilterColumn(filterEditor.col)}>Clear column filter</button>
+              <span className="spacer" />
+              <button className="secondary" onClick={() => setFilterEditor(null)}>Cancel</button>
+              <button className="primary-action" onClick={applyFilterEditor}>Apply filter</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {conditionalOpen && (
+        <div className="overlay panel-overlay" onMouseDown={() => setConditionalOpen(false)}>
+          <div className="rule-card" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="rule-card-header">
+              <div>
+                <span className="eyebrow">CONDITIONAL FORMATTING</span>
+                <h2>New rule</h2>
+                <p>Apply formatting to {selectionToAddress(selection)} when the condition is true.</p>
+              </div>
+              <button onClick={() => setConditionalOpen(false)}>×</button>
+            </div>
+
+            <div className="rule-form rule-grid">
+              <label>
+                Condition
+                <select value={conditionalOperator} onChange={(e) => setConditionalOperator(e.target.value as ConditionalFormatOperator)}>
+                  <option value="greaterThan">Greater than</option>
+                  <option value="lessThan">Less than</option>
+                  <option value="equals">Equals</option>
+                  <option value="contains">Contains text</option>
+                  <option value="notBlank">Is not blank</option>
+                </select>
+              </label>
+
+              {conditionalOperator !== 'notBlank' && (
+                <label>
+                  Value
+                  <input value={conditionalValue} onChange={(e) => setConditionalValue(e.target.value)} />
+                </label>
+              )}
+
+              <label>
+                Fill
+                <input type="color" value={conditionalBackground} onChange={(e) => setConditionalBackground(e.target.value)} />
+              </label>
+
+              <label>
+                Text
+                <input type="color" value={conditionalColor} onChange={(e) => setConditionalColor(e.target.value)} />
+              </label>
+            </div>
+
+            {(sheet.conditionalFormats || []).length > 0 && (
+              <div className="rule-list">
+                <strong>Existing rules</strong>
+                {(sheet.conditionalFormats || []).map((rule) => (
+                  <div className="rule-list-item" key={rule.id}>
+                    <span className="rule-swatch" style={{ background: rule.background, color: rule.color }}>Aa</span>
+                    <span>
+                      {selectionToAddress({
+                        anchor: { row: rule.top, col: rule.left },
+                        focus: { row: rule.bottom, col: rule.right },
+                      })} · {rule.operator}{rule.value ? ` ${rule.value}` : ''}
+                    </span>
+                    <button onClick={() => removeConditionalFormat(rule.id)}>Remove</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="rule-actions">
+              <button className="secondary" onClick={clearConditionalFormats}>Clear all rules</button>
+              <span className="spacer" />
+              <button className="secondary" onClick={() => setConditionalOpen(false)}>Cancel</button>
+              <button className="primary-action" onClick={addConditionalFormat}>Add rule</button>
+            </div>
           </div>
         </div>
       )}
