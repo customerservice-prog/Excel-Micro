@@ -3006,27 +3006,46 @@ export default function App() {
     return data.slice(0, 24)
   }, [range.bottom, range.left, range.right, range.top, sheet])
 
-  const columnTemplate = useMemo(() => {
-    const widths = Array.from({ length: COLS }, (_, col) => {
-      if (sheet.hiddenColumns?.[String(col)]) return '0px'
-      const width = getColumnWidth(sheet, col) * zoom / 100
-      return `${Math.round(width)}px`
+  const headerHeight = Math.max(20, Math.round(DEFAULT_ROW_HEIGHT * zoom / 100))
+
+  const columnMetrics = useMemo(() => {
+    const sizes = Array.from({ length: COLS }, (_, col) => {
+      if (sheet.hiddenColumns?.[String(col)]) return 0
+      return Math.round(getColumnWidth(sheet, col) * zoom / 100)
     })
-    return `46px ${widths.join(' ')}`
+    return buildTrackMetrics(sizes, 46)
   }, [sheet, zoom])
 
-  const rowTemplate = useMemo(() => {
-    const heights = Array.from({ length: ROWS }, (_, row) => {
-      if (hiddenRows.has(row) || sheet.hiddenRows?.[String(row)]) return '0px'
-      const height = getRowHeight(sheet, row) * zoom / 100
-      return `${Math.max(20, Math.round(height))}px`
+  const rowMetrics = useMemo(() => {
+    const sizes = Array.from({ length: ROWS }, (_, row) => {
+      if (hiddenRows.has(row) || sheet.hiddenRows?.[String(row)]) return 0
+      return Math.max(20, Math.round(getRowHeight(sheet, row) * zoom / 100))
     })
-    const headerHeight = Math.max(20, Math.round(DEFAULT_ROW_HEIGHT * zoom / 100))
-    return `${headerHeight}px ${heights.join(' ')}`
-  }, [hiddenRows, sheet, zoom])
+    return buildTrackMetrics(sizes, headerHeight)
+  }, [headerHeight, hiddenRows, sheet, zoom])
+
+  const columnTemplate = useMemo(
+    () => `46px ${columnMetrics.sizes.map((size) => `${size}px`).join(' ')}`,
+    [columnMetrics],
+  )
+
+  const rowTemplate = useMemo(
+    () => `${headerHeight}px ${rowMetrics.sizes.map((size) => `${size}px`).join(' ')}`,
+    [headerHeight, rowMetrics],
+  )
+
+  const visibleColumns = useMemo(
+    () => visibleTrackIndexes(columnMetrics, viewport.scrollLeft, viewport.width, 3),
+    [columnMetrics, viewport.scrollLeft, viewport.width],
+  )
+
+  const visibleRows = useMemo(
+    () => visibleTrackIndexes(rowMetrics, viewport.scrollTop, viewport.height, 8),
+    [rowMetrics, viewport.height, viewport.scrollTop],
+  )
 
   const gridStyle = {
-    '--row-height': `${Math.max(20, Math.round(DEFAULT_ROW_HEIGHT * zoom / 100))}px`,
+    '--row-height': `${headerHeight}px`,
     gridTemplateColumns: columnTemplate,
     gridTemplateRows: rowTemplate,
     fontSize: `${Math.max(10, 12 * zoom / 100)}px`,
