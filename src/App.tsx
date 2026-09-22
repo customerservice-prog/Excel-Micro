@@ -464,6 +464,25 @@ function visibleTrackIndexes(
   return result
 }
 
+function chartDataForRange(
+  sheet: SheetData,
+  selected: { top: number; bottom: number; left: number; right: number },
+  sheets: SheetData[],
+) {
+  const data: { label: string; value: number }[] = []
+
+  for (let row = selected.top; row <= selected.bottom; row += 1) {
+    const label = selected.right > selected.left
+      ? formatted(getCell(sheet, row, selected.left), sheet, sheets)
+      : String(row + 1)
+    const valueCol = selected.right > selected.left ? selected.left + 1 : selected.left
+    const value = Number(displayValue(getCell(sheet, row, valueCol).value, sheet, sheets))
+    if (Number.isFinite(value)) data.push({ label: label || String(row + 1), value })
+  }
+
+  return data.slice(0, 100)
+}
+
 function uniqueSheetName(sheets: SheetData[], base: string) {
   const existing = new Set(sheets.map((sheet) => sheet.name.toLowerCase()))
   let candidate = base
@@ -3032,20 +3051,10 @@ export default function App() {
     }
   }, [book.sheets, selection, sheet])
 
-  const chart = useMemo(() => {
-    const data: { label: string; value: number }[] = []
-
-    for (let row = range.top; row <= range.bottom; row += 1) {
-      const label = range.right > range.left
-        ? formatted(getCell(sheet, row, range.left), sheet, book.sheets)
-        : String(row + 1)
-      const valueCol = range.right > range.left ? range.left + 1 : range.left
-      const value = Number(displayValue(getCell(sheet, row, valueCol).value, sheet, book.sheets))
-      if (Number.isFinite(value)) data.push({ label: label || String(row + 1), value })
-    }
-
-    return data.slice(0, 24)
-  }, [range.bottom, range.left, range.right, range.top, sheet])
+  const chart = useMemo(
+    () => chartDataForRange(sheet, range, book.sheets).slice(0, 24),
+    [book.sheets, range.bottom, range.left, range.right, range.top, sheet],
+  )
 
   const headerHeight = Math.max(20, Math.round(DEFAULT_ROW_HEIGHT * zoom / 100))
 
