@@ -2,7 +2,7 @@
 
 Excel Micro is a browser-based spreadsheet workspace built from scratch as a modern, lightweight Excel-style application.
 
-## Excel Micro 0.4
+## Excel Micro 0.5
 
 The current release is a real working spreadsheet core, not a static spreadsheet mockup.
 
@@ -133,12 +133,35 @@ Right-click directly where you are working:
 
 ### Data tools
 
+- Excel-style filter headers for a selected range
+- Per-column filter rules: Contains, Equals, Greater than, Less than, Is not blank
+- Clear one filter or all filter conditions
 - Sort selected data A → Z
 - Sort selected data Z → A
 - Find within the active sheet
 - Copy selected ranges
 - Multi-cell paste
 - Quick bar charts
+
+### Conditional formatting
+
+- Apply rules to any selected range
+- Greater than
+- Less than
+- Equals
+- Contains text
+- Is not blank
+- Custom fill and text colors
+- Multiple saved rules per sheet
+- Remove individual rules or clear all
+
+### Named ranges
+
+- Name any selected range from the Formulas ribbon
+- Use names directly in formulas such as `=SUM(SALES)`
+- Jump to named ranges by typing the name in the Name Box
+- Named ranges shift automatically with row/column insertion and deletion
+- Manage and remove names from the workbook UI
 
 ### File compatibility
 
@@ -223,17 +246,16 @@ GitHub Actions runs on every push to `main` and on pull requests. CI:
 
 ## Next major phases
 
-Excel Micro 0.4 is still local-first. The next major product layers are:
+Excel Micro 0.5 is still local-first. The next major product layers are:
 
 1. Accounts and cloud workbooks
 2. Share links and permissions
 3. Real-time multiplayer editing
 4. Comments and version history
-5. Filters and structured table objects
-6. Conditional formatting
+5. Structured table objects
+6. Data validation and dropdown cells
 7. More Excel-compatible formulas
-8. Named ranges
-9. Advanced chart types
-10. Pivot tables
-11. Print and page layout
-12. Large-sheet virtualization and worker-based calculations
+8. Advanced chart types
+9. Pivot tables
+10. Print and page layout
+11. Large-sheet virtualization and worker-based calculations
