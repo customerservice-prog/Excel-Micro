@@ -2,7 +2,7 @@
 
 Excel Micro is a browser-based spreadsheet workspace built from scratch as a modern, lightweight Excel-style application.
 
-## Excel Micro 0.3
+## Excel Micro 0.4
 
 The current release is a real working spreadsheet core, not a static spreadsheet mockup.
 
@@ -91,12 +91,20 @@ Nested formulas, comparisons, percentages, ranges, strings, booleans, arithmetic
 - Clear values
 - Clear formatting
 
-### Columns and sheet view
+### Rows, columns, and sheet view
 
+- Insert rows above the active selection
+- Delete rows
+- Insert columns to the left of the active selection
+- Delete columns
+- Formula references are adjusted when rows or columns move
 - Drag a column border to resize it
 - Double-click a column border to AutoFit
+- Drag a row border to resize it
+- Double-click a row border to AutoFit
 - Widen / narrow selected columns from the View ribbon
-- Reset selected column widths
+- Increase / decrease selected row heights
+- Reset selected column widths and row heights
 - Imported Excel column widths are read when available
 - Exported Excel workbooks include column widths
 - Toggle gridlines
@@ -114,6 +122,14 @@ Nested formulas, comparisons, percentages, ranges, strings, booleans, arithmetic
 - Sheet tabs
 - Local workbook persistence
 - Undo / redo history
+
+### Excel-style context menus
+
+Right-click directly where you are working:
+
+- Cells: Copy, Clear contents, Clear formatting, Insert row, Insert column
+- Row headers: Insert row, Delete row, AutoFit row, Increase row height
+- Column headers: Insert column, Delete column, AutoFit column, Increase column width
 
 ### Data tools
 
@@ -207,7 +223,7 @@ GitHub Actions runs on every push to `main` and on pull requests. CI:
 
 ## Next major phases
 
-Excel Micro 0.3 is still local-first. The next major product layers are:
+Excel Micro 0.4 is still local-first. The next major product layers are:
 
 1. Accounts and cloud workbooks
 2. Share links and permissions
@@ -216,9 +232,8 @@ Excel Micro 0.3 is still local-first. The next major product layers are:
 5. Filters and structured table objects
 6. Conditional formatting
 7. More Excel-compatible formulas
-8. Row insertion/deletion and row resizing
-9. Named ranges
-10. Advanced chart types
-11. Pivot tables
-12. Print and page layout
-13. Large-sheet virtualization and worker-based calculations
+8. Named ranges
+9. Advanced chart types
+10. Pivot tables
+11. Print and page layout
+12. Large-sheet virtualization and worker-based calculations
