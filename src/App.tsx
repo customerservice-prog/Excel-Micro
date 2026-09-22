@@ -1106,6 +1106,11 @@ export default function App() {
 
   async function copySelected() {
     const r = normalizeSelection(selection)
+    const area = (r.bottom - r.top + 1) * (r.right - r.left + 1)
+    if (area > 200_000) {
+      setNotice(`Copy is limited to 200,000 cells at a time. Current selection: ${area.toLocaleString()}.`)
+      return
+    }
     const rows: string[] = []
 
     for (let row = r.top; row <= r.bottom; row += 1) {
@@ -1473,7 +1478,8 @@ export default function App() {
   }
 
   function insertCheckboxes() {
-    const points = getSelectedPoints(selection)
+    const points = selectedPointsForMutation(50_000)
+    if (!points) return
     mutate((next) => {
       const s = activeSheet(next)
       points.forEach((target) => {
@@ -1491,7 +1497,8 @@ export default function App() {
   }
 
   function removeCheckboxes() {
-    const points = getSelectedPoints(selection)
+    const points = selectedPointsForMutation(50_000)
+    if (!points) return
     mutate((next) => {
       const s = activeSheet(next)
       points.forEach((target) => {
@@ -2993,16 +3000,37 @@ export default function App() {
   }
 
   const stats = useMemo(() => {
-    const nums = getSelectedPoints(selection)
-      .map((p) => Number(displayValue(getCell(sheet, p.row, p.col).value, sheet, book.sheets)))
-      .filter(Number.isFinite)
+    const selected = normalizeSelection(selection)
+    const area = (selected.bottom - selected.top + 1) * (selected.right - selected.left + 1)
+    const nums: number[] = []
+
+    if (area <= 100_000) {
+      for (let row = selected.top; row <= selected.bottom; row += 1) {
+        for (let col = selected.left; col <= selected.right; col += 1) {
+          const value = Number(displayValue(getCell(sheet, row, col).value, sheet, book.sheets))
+          if (Number.isFinite(value)) nums.push(value)
+        }
+      }
+    } else {
+      Object.entries(sheet.cells).forEach(([key, data]) => {
+        const [row, col] = key.split(':').map(Number)
+        if (
+          row < selected.top ||
+          row > selected.bottom ||
+          col < selected.left ||
+          col > selected.right
+        ) return
+        const value = Number(displayValue(data.value, sheet, book.sheets))
+        if (Number.isFinite(value)) nums.push(value)
+      })
+    }
 
     return {
       count: nums.length,
       sum: nums.reduce((a, b) => a + b, 0),
       avg: nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0,
     }
-  }, [selection, sheet])
+  }, [book.sheets, selection, sheet])
 
   const chart = useMemo(() => {
     const data: { label: string; value: number }[] = []
