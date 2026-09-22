@@ -2,7 +2,7 @@
 
 Excel Micro is a browser-based spreadsheet workspace built from scratch as a modern, lightweight Excel-style application.
 
-## Excel Micro 0.6
+## Excel Micro 0.7
 
 The current release is a real working spreadsheet core, not a static spreadsheet mockup.
 
@@ -141,7 +141,19 @@ Right-click directly where you are working:
 - Find within the active sheet
 - Copy selected ranges
 - Multi-cell paste
-- Quick bar charts
+- Quick bar, line, and pie charts
+- Switch chart type without rebuilding the selection
+
+### Structured tables
+
+- Format any selected dataset as a table
+- Named tables
+- Green, blue, orange, and gray style presets
+- Optional banded rows
+- First row becomes a styled table header
+- Table creation automatically enables filter headers
+- Table ranges move with inserted/deleted rows and columns
+- Manage and remove tables from the workbook UI
 
 ### Conditional formatting
 
@@ -257,15 +269,13 @@ GitHub Actions runs on every push to `main` and on pull requests. CI:
 
 ## Next major phases
 
-Excel Micro 0.6 is still local-first. The next major product layers are:
+Excel Micro 0.7 is still local-first. The next major product layers are:
 
 1. Accounts and cloud workbooks
 2. Share links and permissions
 3. Real-time multiplayer editing
 4. Comments and version history
-5. Structured table objects
-6. More Excel-compatible formulas
-7. Advanced chart types
-8. Pivot tables
-9. Print and page layout
-10. Large-sheet virtualization and worker-based calculations
+5. More Excel-compatible formulas
+6. Pivot tables
+7. Print and page layout
+8. Large-sheet virtualization and worker-based calculations
