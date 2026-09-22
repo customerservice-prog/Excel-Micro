@@ -94,8 +94,8 @@ function download(name: string, content: BlobPart, type: string) {
   URL.revokeObjectURL(url)
 }
 
-function formatted(cell: CellData, sheet: SheetData) {
-  const value = displayValue(cell.value, sheet)
+function formatted(cell: CellData, sheet: SheetData, sheets: SheetData[] = [sheet]) {
+  const value = displayValue(cell.value, sheet, sheets)
   const n = Number(value)
   const format = cell.format?.numberFormat || 'general'
   const decimals = cell.format?.decimals
@@ -360,7 +360,7 @@ export default function App() {
     for (let row = filterRange.top + 1; row <= filterRange.bottom; row += 1) {
       const visible = Object.entries(filters).every(([colText, rule]) => {
         const col = Number(colText)
-        const value = formatted(getCell(sheet, row, col), sheet)
+        const value = formatted(getCell(sheet, row, col), sheet, book.sheets)
         return matchesCondition(value, rule.operator, rule.value || '')
       })
 
@@ -1245,8 +1245,8 @@ export default function App() {
       }
 
       rows.sort((a, b) => {
-        const av = displayValue(a[0].value, s)
-        const bv = displayValue(b[0].value, s)
+        const av = displayValue(a[0].value, s, next.sheets)
+        const bv = displayValue(b[0].value, s, next.sheets)
         const an = Number(av)
         const bn = Number(bv)
         const result = Number.isFinite(an) && Number.isFinite(bn)
@@ -1430,7 +1430,7 @@ export default function App() {
     let longest = colToName(col).length
 
     for (let row = 0; row < ROWS; row += 1) {
-      const value = formatted(getCell(sheet, row, col), sheet)
+      const value = formatted(getCell(sheet, row, col), sheet, book.sheets)
       longest = Math.max(longest, value.length)
     }
 
@@ -1486,7 +1486,7 @@ export default function App() {
 
     for (let col = 0; col < COLS; col += 1) {
       const data = getCell(sheet, row, col)
-      const value = formatted(data, sheet)
+      const value = formatted(data, sheet, book.sheets)
       const fontSize = data.format?.fontSize || 11
       let lines = 1
 
@@ -1964,13 +1964,13 @@ export default function App() {
   }
 
   function createPivot() {
-    const rowHeader = formatted(getCell(sheet, pivotSource.top, pivotRowField), sheet) || colToName(pivotRowField)
-    const valueHeader = formatted(getCell(sheet, pivotSource.top, pivotValueField), sheet) || colToName(pivotValueField)
+    const rowHeader = formatted(getCell(sheet, pivotSource.top, pivotRowField), sheet, book.sheets) || colToName(pivotRowField)
+    const valueHeader = formatted(getCell(sheet, pivotSource.top, pivotValueField), sheet, book.sheets) || colToName(pivotValueField)
     const grouped = new Map<string, { sum: number; count: number }>()
 
     for (let row = pivotSource.top + 1; row <= pivotSource.bottom; row += 1) {
-      const label = formatted(getCell(sheet, row, pivotRowField), sheet) || '(blank)'
-      const rawValue = displayValue(getCell(sheet, row, pivotValueField).value, sheet)
+      const label = formatted(getCell(sheet, row, pivotRowField), sheet, book.sheets) || '(blank)'
+      const rawValue = displayValue(getCell(sheet, row, pivotValueField).value, sheet, book.sheets)
       const numeric = Number(rawValue.replace(/[$,%]/g, ''))
       const current = grouped.get(label) || { sum: 0, count: 0 }
 
@@ -2460,7 +2460,7 @@ export default function App() {
 
   const stats = useMemo(() => {
     const nums = getSelectedPoints(selection)
-      .map((p) => Number(displayValue(getCell(sheet, p.row, p.col).value, sheet)))
+      .map((p) => Number(displayValue(getCell(sheet, p.row, p.col).value, sheet, book.sheets)))
       .filter(Number.isFinite)
 
     return {
@@ -2475,10 +2475,10 @@ export default function App() {
 
     for (let row = range.top; row <= range.bottom; row += 1) {
       const label = range.right > range.left
-        ? formatted(getCell(sheet, row, range.left), sheet)
+        ? formatted(getCell(sheet, row, range.left), sheet, book.sheets)
         : String(row + 1)
       const valueCol = range.right > range.left ? range.left + 1 : range.left
-      const value = Number(displayValue(getCell(sheet, row, valueCol).value, sheet))
+      const value = Number(displayValue(getCell(sheet, row, valueCol).value, sheet, book.sheets))
       if (Number.isFinite(value)) data.push({ label: label || String(row + 1), value })
     }
 
@@ -3077,7 +3077,7 @@ export default function App() {
                     data.format?.underline ? 'underline' : '',
                     data.format?.strikethrough ? 'line-through' : '',
                   ].filter(Boolean).join(' ')
-                  const display = formatted(data, sheet)
+                  const display = formatted(data, sheet, book.sheets)
                   const conditionalStyle = conditionalStyleForCell(sheet, row, col, display)
                   const tableStyleInfo = tableStyleForCell(sheet, row, col)
                   const filterHeader = Boolean(
@@ -3330,7 +3330,7 @@ export default function App() {
                     const col = printBounds.left + colOffset
                     const data = getCell(sheet, row, col)
                     const tableStyleInfo = tableStyleForCell(sheet, row, col)
-                    const conditionalStyle = conditionalStyleForCell(sheet, row, col, formatted(data, sheet))
+                    const conditionalStyle = conditionalStyleForCell(sheet, row, col, formatted(data, sheet, book.sheets))
                     return (
                       <td
                         key={col}
@@ -3342,7 +3342,7 @@ export default function App() {
                           background: conditionalStyle.background || data.format?.background || tableStyleInfo.background,
                         }}
                       >
-                        {formatted(data, sheet)}
+                        {formatted(data, sheet, book.sheets)}
                       </td>
                     )
                   })}
@@ -3859,7 +3859,7 @@ export default function App() {
                     const col = pivotSource.left + offset
                     return (
                       <option key={col} value={col}>
-                        {formatted(getCell(sheet, pivotSource.top, col), sheet) || colToName(col)}
+                        {formatted(getCell(sheet, pivotSource.top, col), sheet, book.sheets) || colToName(col)}
                       </option>
                     )
                   })}
@@ -3873,7 +3873,7 @@ export default function App() {
                     const col = pivotSource.left + offset
                     return (
                       <option key={col} value={col}>
-                        {formatted(getCell(sheet, pivotSource.top, col), sheet) || colToName(col)}
+                        {formatted(getCell(sheet, pivotSource.top, col), sheet, book.sheets) || colToName(col)}
                       </option>
                     )
                   })}
