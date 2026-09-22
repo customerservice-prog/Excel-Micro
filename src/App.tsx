@@ -2043,6 +2043,21 @@ export default function App() {
     fontSize: `${Math.max(10, 12 * zoom / 100)}px`,
   } as CSSProperties
 
+  const printBounds = usedRange()
+  const pageLayout = {
+    orientation: 'portrait' as const,
+    paperSize: 'letter' as const,
+    margins: 'normal' as const,
+    printGridlines: true,
+    ...(sheet.pageLayout || {}),
+  }
+  const printMargin = pageLayout.margins === 'narrow'
+    ? '0.25in'
+    : pageLayout.margins === 'wide'
+      ? '1in'
+      : '0.5in'
+  const printPageSize = `${pageLayout.paperSize === 'a4' ? 'A4' : 'letter'} ${pageLayout.orientation}`
+
   return (
     <div className="app-shell">
       <header className="titlebar">
@@ -2716,9 +2731,45 @@ export default function App() {
             <span>Sum: {stats.sum.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
           </>
         )}
-        <span className="status-view">{sheet.freezeTopRow || sheet.freezeFirstColumn ? 'Frozen panes' : 'Normal view'}</span>
+        <span className="status-view">{sheet.protected ? '🔒 Protected' : sheet.freezeTopRow || sheet.freezeFirstColumn ? 'Frozen panes' : 'Normal view'}</span>
         <span>{zoom}%</span>
       </footer>
+
+      <style>{`@media print { @page { size: ${printPageSize}; margin: ${printMargin}; } }`}</style>
+      <div className={'print-area ' + (pageLayout.printGridlines ? 'print-gridlines' : '')}>
+        <div className="print-title">{book.title} — {sheet.name}</div>
+        <table>
+          <tbody>
+            {Array.from({ length: printBounds.bottom - printBounds.top + 1 }, (_, rowOffset) => {
+              const row = printBounds.top + rowOffset
+              return (
+                <tr key={row}>
+                  {Array.from({ length: printBounds.right - printBounds.left + 1 }, (_, colOffset) => {
+                    const col = printBounds.left + colOffset
+                    const data = getCell(sheet, row, col)
+                    const tableStyleInfo = tableStyleForCell(sheet, row, col)
+                    const conditionalStyle = conditionalStyleForCell(sheet, row, col, formatted(data, sheet))
+                    return (
+                      <td
+                        key={col}
+                        style={{
+                          fontWeight: data.format?.bold || tableStyleInfo.bold ? 700 : 400,
+                          fontStyle: data.format?.italic ? 'italic' : 'normal',
+                          textAlign: data.format?.align || 'left',
+                          color: conditionalStyle.color || data.format?.color || tableStyleInfo.color,
+                          background: conditionalStyle.background || data.format?.background || tableStyleInfo.background,
+                        }}
+                      >
+                        {formatted(data, sheet)}
+                      </td>
+                    )
+                  })}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
 
       {findOpen && (
         <div className="find-box">
@@ -3107,6 +3158,106 @@ export default function App() {
               <span className="spacer" />
               <button className="secondary" onClick={() => setConditionalOpen(false)}>Cancel</button>
               <button className="primary-action" onClick={addConditionalFormat}>Add rule</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {noteOpen && (
+        <div className="overlay panel-overlay" onMouseDown={() => setNoteOpen(false)}>
+          <div className="rule-card note-card" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="rule-card-header">
+              <div>
+                <span className="eyebrow">CELL NOTE</span>
+                <h2>{pointToAddress(noteTarget)}</h2>
+                <p>Add a note that stays attached to this cell.</p>
+              </div>
+              <button onClick={() => setNoteOpen(false)}>×</button>
+            </div>
+            <div className="note-editor">
+              <textarea
+                autoFocus
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                placeholder="Write a note…"
+                onKeyDown={(e) => {
+                  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') saveNote()
+                  if (e.key === 'Escape') setNoteOpen(false)
+                }}
+              />
+              <span>Ctrl/Cmd + Enter to save</span>
+            </div>
+            <div className="rule-actions">
+              {sheet.notes?.[cellKey(noteTarget.row, noteTarget.col)] && (
+                <button className="secondary danger-text" onClick={removeNote}>Delete note</button>
+              )}
+              <span className="spacer" />
+              <button className="secondary" onClick={() => setNoteOpen(false)}>Cancel</button>
+              <button className="primary-action" onClick={saveNote}>Save note</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pivotOpen && (
+        <div className="overlay panel-overlay" onMouseDown={() => setPivotOpen(false)}>
+          <div className="rule-card pivot-card" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="rule-card-header">
+              <div>
+                <span className="eyebrow">PIVOTTABLE</span>
+                <h2>Create summary</h2>
+                <p>Summarize {selectionToAddress({
+                  anchor: { row: pivotSource.top, col: pivotSource.left },
+                  focus: { row: pivotSource.bottom, col: pivotSource.right },
+                })} on a new sheet.</p>
+              </div>
+              <button onClick={() => setPivotOpen(false)}>×</button>
+            </div>
+
+            <div className="pivot-form">
+              <label>
+                Rows
+                <select value={pivotRowField} onChange={(e) => setPivotRowField(Number(e.target.value))}>
+                  {Array.from({ length: pivotSource.right - pivotSource.left + 1 }, (_, offset) => {
+                    const col = pivotSource.left + offset
+                    return (
+                      <option key={col} value={col}>
+                        {formatted(getCell(sheet, pivotSource.top, col), sheet) || colToName(col)}
+                      </option>
+                    )
+                  })}
+                </select>
+              </label>
+
+              <label>
+                Values
+                <select value={pivotValueField} onChange={(e) => setPivotValueField(Number(e.target.value))}>
+                  {Array.from({ length: pivotSource.right - pivotSource.left + 1 }, (_, offset) => {
+                    const col = pivotSource.left + offset
+                    return (
+                      <option key={col} value={col}>
+                        {formatted(getCell(sheet, pivotSource.top, col), sheet) || colToName(col)}
+                      </option>
+                    )
+                  })}
+                </select>
+              </label>
+
+              <label>
+                Calculation
+                <select value={pivotAggregator} onChange={(e) => setPivotAggregator(e.target.value as 'sum' | 'count' | 'average')}>
+                  <option value="sum">Sum</option>
+                  <option value="count">Count</option>
+                  <option value="average">Average</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="rule-actions">
+              <span className="named-range-tip">Excel Micro creates the summary on a new worksheet.</span>
+              <span className="spacer" />
+              <button className="secondary" onClick={() => setPivotOpen(false)}>Cancel</button>
+              <button className="primary-action" onClick={createPivot}>Create PivotTable</button>
             </div>
           </div>
         </div>
