@@ -128,6 +128,7 @@ export default function App() {
   const [notice, setNotice] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  const columnResizeRef = useRef<{ col: number; startX: number; startWidth: number } | null>(null)
 
   const sheet = useMemo(
     () => book.sheets.find((item) => item.id === book.activeSheetId) || book.sheets[0],
@@ -155,6 +156,38 @@ export default function App() {
     const stop = () => setDragging(false)
     window.addEventListener('mouseup', stop)
     return () => window.removeEventListener('mouseup', stop)
+  }, [])
+
+  useEffect(() => {
+    const onMove = (event: MouseEvent) => {
+      const resize = columnResizeRef.current
+      if (!resize) return
+
+      const width = Math.max(48, Math.min(360, resize.startWidth + event.clientX - resize.startX))
+
+      setBook((current) => {
+        const next = structuredClone(current)
+        const target = next.sheets.find((item) => item.id === next.activeSheetId) || next.sheets[0]
+        target.columnWidths ||= {}
+        target.columnWidths[String(resize.col)] = Math.round(width)
+        next.updatedAt = Date.now()
+        return next
+      })
+    }
+
+    const onUp = () => {
+      if (columnResizeRef.current) setNotice('Column width updated')
+      columnResizeRef.current = null
+      document.body.classList.remove('is-column-resizing')
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
   }, [])
 
   useEffect(() => {
@@ -642,7 +675,7 @@ export default function App() {
     })
   }
 
-  function smartFunction(name: 'SUM' | 'AVERAGE' | 'MIN' | 'MAX' | 'COUNT') {
+  function smartFunction(name: 'SUM' | 'AVERAGE' | 'MIN' | 'MAX' | 'COUNT' | 'PRODUCT' | 'MEDIAN') {
     const singleCell = range.top === range.bottom && range.left === range.right
 
     if (singleCell) {
@@ -674,6 +707,38 @@ export default function App() {
   function adjustDecimals(delta: number) {
     const current = cell.format?.decimals ?? (cell.format?.numberFormat === 'currency' ? 2 : 0)
     applyFormat({ decimals: Math.max(0, Math.min(8, current + delta)) })
+  }
+
+  function beginColumnResize(event: React.MouseEvent, col: number) {
+    event.preventDefault()
+    event.stopPropagation()
+    setHistory((items) => [...items, book].slice(-75))
+    setFuture([])
+    columnResizeRef.current = {
+      col,
+      startX: event.clientX,
+      startWidth: getColumnWidth(sheet, col),
+    }
+    document.body.classList.add('is-column-resizing')
+  }
+
+  function autoFitColumn(col: number) {
+    let longest = colToName(col).length
+
+    for (let row = 0; row < ROWS; row += 1) {
+      const value = formatted(getCell(sheet, row, col), sheet)
+      longest = Math.max(longest, value.length)
+    }
+
+    const width = Math.max(58, Math.min(360, 20 + longest * 7.2))
+
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.columnWidths ||= {}
+      s.columnWidths[String(col)] = Math.round(width)
+    })
+
+    setNotice(`AutoFit ${colToName(col)}`)
   }
 
   function adjustColumnWidth(delta: number) {
@@ -1072,17 +1137,20 @@ export default function App() {
               <RibbonButton icon="Σ" label="SUM" primary onClick={() => smartFunction('SUM')} />
               <RibbonButton icon="x̄" label="AVERAGE" onClick={() => smartFunction('AVERAGE')} />
               <RibbonButton icon="#" label="COUNT" onClick={() => smartFunction('COUNT')} />
+              <RibbonButton icon="×" label="PRODUCT" onClick={() => smartFunction('PRODUCT')} />
+              <RibbonButton icon="M" label="MEDIAN" onClick={() => smartFunction('MEDIAN')} />
               <RibbonButton icon="↑" label="MAX" onClick={() => smartFunction('MAX')} />
               <RibbonButton icon="↓" label="MIN" onClick={() => smartFunction('MIN')} />
               <RibbonButton icon="?" label="IF" onClick={() => beginEdit('=IF(')} />
+              <RibbonButton icon=".0" label="ROUND" onClick={() => beginEdit('=ROUND(')} />
             </Group>
 
             <div className="formula-help">
               <strong>Formula examples</strong>
               <span>=SUM(A1:A10)</span>
               <span>=AVERAGE(B2:B20)</span>
-              <span>=IF(C2&gt;100,1,0)</span>
-              <span>=A1*B1</span>
+              <span>=IF(SUM(A1:A5)&gt;100,"Over","OK")</span>
+              <span>=ROUND(A1*B1,2)</span>
             </div>
           </>
         )}
@@ -1217,6 +1285,16 @@ export default function App() {
                 }}
               >
                 {colToName(col)}
+                <span
+                  className="col-resizer"
+                  title="Drag to resize • Double-click to AutoFit"
+                  onMouseDown={(e) => beginColumnResize(e, col)}
+                  onDoubleClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    autoFitColumn(col)
+                  }}
+                />
               </div>
             ))}
 
