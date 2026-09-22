@@ -3683,22 +3683,103 @@ export default function App() {
             <div className="rule-card-header">
               <div>
                 <span className="eyebrow">DATA VALIDATION</span>
-                <h2>Dropdown list</h2>
-                <p>Limit {selectionToAddress(selection)} to approved values.</p>
+                <h2>Validation rule</h2>
+                <p>Control what can be entered in {selectionToAddress(selection)}.</p>
               </div>
               <button onClick={() => setValidationOpen(false)}>×</button>
             </div>
 
-            <div className="validation-form">
+            <div className="validation-form advanced-validation-form">
               <label>
-                Allowed values
-                <textarea
-                  autoFocus
-                  value={validationOptions}
-                  onChange={(e) => setValidationOptions(e.target.value)}
-                  placeholder={'Pending\nPaid\nCanceled'}
+                Allow
+                <select
+                  value={validationType}
+                  onChange={(e) => setValidationType(e.target.value as DataValidationType)}
+                >
+                  <option value="list">List / dropdown</option>
+                  <option value="whole">Whole number</option>
+                  <option value="decimal">Decimal</option>
+                  <option value="date">Date</option>
+                  <option value="textLength">Text length</option>
+                </select>
+              </label>
+
+              {validationType === 'list' ? (
+                <label className="validation-wide">
+                  Allowed values
+                  <textarea
+                    autoFocus
+                    value={validationOptions}
+                    onChange={(e) => setValidationOptions(e.target.value)}
+                    placeholder={'Pending\nPaid\nCanceled'}
+                  />
+                  <span>Enter one value per line, or separate values with commas.</span>
+                </label>
+              ) : (
+                <>
+                  <label>
+                    Condition
+                    <select
+                      value={validationOperator}
+                      onChange={(e) => setValidationOperator(e.target.value as DataValidationOperator)}
+                    >
+                      <option value="between">Between</option>
+                      <option value="equalTo">Equal to</option>
+                      <option value="greaterThan">Greater than</option>
+                      <option value="lessThan">Less than</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    {validationOperator === 'between' ? 'Minimum' : 'Value'}
+                    <input
+                      type={validationType === 'date' ? 'date' : 'number'}
+                      value={validationMinimum}
+                      onChange={(e) => setValidationMinimum(e.target.value)}
+                    />
+                  </label>
+
+                  {validationOperator === 'between' && (
+                    <label>
+                      Maximum
+                      <input
+                        type={validationType === 'date' ? 'date' : 'number'}
+                        value={validationMaximum}
+                        onChange={(e) => setValidationMaximum(e.target.value)}
+                      />
+                    </label>
+                  )}
+                </>
+              )}
+
+              <label>
+                Input title
+                <input
+                  value={validationInputTitle}
+                  onChange={(e) => setValidationInputTitle(e.target.value)}
+                  placeholder="Optional"
                 />
-                <span>Enter one value per line, or separate values with commas.</span>
+              </label>
+
+              <label className="validation-wide">
+                Input message
+                <input
+                  value={validationInputMessage}
+                  onChange={(e) => setValidationInputMessage(e.target.value)}
+                  placeholder="Shown when a validated cell is selected"
+                />
+              </label>
+
+              <label>
+                Invalid data
+                <select
+                  value={validationErrorStyle}
+                  onChange={(e) => setValidationErrorStyle(e.target.value as DataValidationErrorStyle)}
+                >
+                  <option value="stop">Stop — reject value</option>
+                  <option value="warning">Warning — ask before keeping</option>
+                  <option value="information">Information — allow with notice</option>
+                </select>
               </label>
 
               <label className="validation-checkbox">
@@ -3715,7 +3796,7 @@ export default function App() {
               <button className="secondary" onClick={clearDataValidation}>Clear validation from selection</button>
               <span className="spacer" />
               <button className="secondary" onClick={() => setValidationOpen(false)}>Cancel</button>
-              <button className="primary-action" onClick={addDataValidation}>Apply dropdown</button>
+              <button className="primary-action" onClick={addDataValidation}>Apply validation</button>
             </div>
           </div>
         </div>
