@@ -36,7 +36,7 @@ import type {
 } from './types'
 
 const STORAGE_KEY = 'excel-micro-workbook-v1'
-type Tab = 'Home' | 'Insert' | 'Formulas' | 'Data' | 'View'
+type Tab = 'Home' | 'Insert' | 'Formulas' | 'Data' | 'Page Layout' | 'Review' | 'View'
 type ContextMenuState = { x: number; y: number; kind: 'cell' | 'row' | 'col'; index: number }
 type FilterEditorState = { col: number; operator: FilterOperator; value: string }
 type ChartType = 'bar' | 'line' | 'pie'
@@ -261,6 +261,14 @@ export default function App() {
   const [tableName, setTableName] = useState('Table1')
   const [tableStyle, setTableStyle] = useState<TableStyle>('green')
   const [tableBandedRows, setTableBandedRows] = useState(true)
+  const [noteOpen, setNoteOpen] = useState(false)
+  const [noteDraft, setNoteDraft] = useState('')
+  const [noteTarget, setNoteTarget] = useState<Point>({ row: 0, col: 0 })
+  const [pivotOpen, setPivotOpen] = useState(false)
+  const [pivotSource, setPivotSource] = useState({ top: 0, bottom: 1, left: 0, right: 1 })
+  const [pivotRowField, setPivotRowField] = useState(0)
+  const [pivotValueField, setPivotValueField] = useState(1)
+  const [pivotAggregator, setPivotAggregator] = useState<'sum' | 'count' | 'average'>('sum')
   const fileRef = useRef<HTMLInputElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const columnResizeRef = useRef<{ col: number; startX: number; startWidth: number } | null>(null)
@@ -401,7 +409,12 @@ export default function App() {
     return next.sheets.find((item) => item.id === next.activeSheetId) || next.sheets[0]
   }
 
-  function mutate(change: (next: WorkbookData) => void) {
+  function mutate(change: (next: WorkbookData) => void, allowProtected = false) {
+    if (sheet.protected && !allowProtected) {
+      window.setTimeout(() => setNotice('This sheet is protected. Unprotect it from Review to edit.'), 0)
+      return
+    }
+
     setHistory((items) => [...items, book].slice(-75))
     setFuture([])
     const next = structuredClone(book)
@@ -422,6 +435,10 @@ export default function App() {
   }
 
   function beginEdit(seed?: string) {
+    if (sheet.protected) {
+      setNotice('This sheet is protected. Unprotect it from Review to edit.')
+      return
+    }
     setDraft(seed === undefined ? cell.value : seed)
     setEditing(true)
   }
@@ -561,6 +578,10 @@ export default function App() {
   }
 
   function undo() {
+    if (sheet.protected) {
+      setNotice('Unprotect the sheet before undoing edits.')
+      return
+    }
     const previous = history.at(-1)
     if (!previous) return
 
@@ -570,6 +591,10 @@ export default function App() {
   }
 
   function redo() {
+    if (sheet.protected) {
+      setNotice('Unprotect the sheet before redoing edits.')
+      return
+    }
     const next = future[0]
     if (!next) return
 
