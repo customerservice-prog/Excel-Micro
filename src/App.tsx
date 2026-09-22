@@ -296,6 +296,7 @@ export default function App() {
   const [versionOpen, setVersionOpen] = useState(false)
   const [find, setFind] = useState('')
   const [replaceText, setReplaceText] = useState('')
+  const [formatPainter, setFormatPainter] = useState<CellFormat | null>(null)
   const [findOpen, setFindOpen] = useState(false)
   const [chartOpen, setChartOpen] = useState(false)
   const [chartType, setChartType] = useState<ChartType>('bar')
@@ -1038,6 +1039,131 @@ export default function App() {
       event.preventDefault()
       beginEdit(event.key)
     }
+  }
+
+  function copyFormat() {
+    setFormatPainter(structuredClone(cell.format || {}))
+    setNotice('Format Painter active — click a cell to apply')
+  }
+
+  function hideCurrentSheet() {
+    const visible = book.sheets.filter((item) => !item.hidden)
+    if (visible.length <= 1) {
+      setNotice('At least one worksheet must remain visible')
+      return
+    }
+
+    const currentIndex = book.sheets.findIndex((item) => item.id === sheet.id)
+    const nextVisible = book.sheets.find((item, index) => index > currentIndex && !item.hidden)
+      || [...book.sheets].reverse().find((item, index) => book.sheets.length - 1 - index < currentIndex && !item.hidden)
+
+    mutate((next) => {
+      const target = next.sheets.find((item) => item.id === sheet.id)
+      if (target) target.hidden = true
+      if (nextVisible) next.activeSheetId = nextVisible.id
+    })
+    setNotice('Worksheet hidden')
+  }
+
+  function unhideAllSheets() {
+    const hidden = book.sheets.filter((item) => item.hidden)
+    if (!hidden.length) {
+      setNotice('No hidden worksheets')
+      return
+    }
+
+    mutate((next) => {
+      next.sheets.forEach((item) => { item.hidden = false })
+    })
+    setNotice('All worksheets unhidden')
+  }
+
+  function removeDuplicates() {
+    const selected = normalizeSelection(selection)
+    if (selected.bottom <= selected.top) {
+      setNotice('Select two or more rows to remove duplicates')
+      return
+    }
+
+    let removed = 0
+
+    mutate((next) => {
+      const s = activeSheet(next)
+      const uniqueRows: CellData[][] = []
+      const seen = new Set<string>()
+
+      for (let row = selected.top; row <= selected.bottom; row += 1) {
+        const rowCells: CellData[] = []
+        const signature: string[] = []
+
+        for (let col = selected.left; col <= selected.right; col += 1) {
+          const data = structuredClone(getCell(s, row, col))
+          rowCells.push(data)
+          signature.push(data.value)
+        }
+
+        const key = JSON.stringify(signature)
+        if (seen.has(key)) {
+          removed += 1
+          continue
+        }
+
+        seen.add(key)
+        uniqueRows.push(rowCells)
+      }
+
+      for (let row = selected.top; row <= selected.bottom; row += 1) {
+        for (let col = selected.left; col <= selected.right; col += 1) {
+          delete s.cells[cellKey(row, col)]
+        }
+      }
+
+      uniqueRows.forEach((rowCells, rowOffset) => {
+        rowCells.forEach((data, colOffset) => {
+          if (!data.value && !data.format && !data.hyperlink) return
+          s.cells[cellKey(selected.top + rowOffset, selected.left + colOffset)] = data
+        })
+      })
+    })
+
+    setNotice(removed ? 'Removed ' + removed + ' duplicate row' + (removed === 1 ? '' : 's') : 'No duplicates found')
+  }
+
+  function textToColumns(delimiter: ',' | '\t' | ';' = ',') {
+    const selected = normalizeSelection(selection)
+    if (selected.left !== selected.right) {
+      setNotice('Text to Columns requires a single selected column')
+      return
+    }
+
+    let widest = 1
+
+    mutate((next) => {
+      const s = activeSheet(next)
+
+      for (let row = selected.top; row <= selected.bottom; row += 1) {
+        const source = getCell(s, row, selected.left)
+        const parts = source.value.split(delimiter)
+        widest = Math.max(widest, parts.length)
+
+        parts.forEach((part, offset) => {
+          const col = selected.left + offset
+          if (col >= COLS) return
+          const key = cellKey(row, col)
+          const old = s.cells[key] || { value: '' }
+          s.cells[key] = {
+            ...old,
+            value: part.trim(),
+          }
+        })
+      }
+    })
+
+    setSelection({
+      anchor: { row: selected.top, col: selected.left },
+      focus: { row: selected.bottom, col: Math.min(COLS - 1, selected.left + widest - 1) },
+    })
+    setNotice('Text split into ' + widest + ' column' + (widest === 1 ? '' : 's'))
   }
 
   function addSheet() {
@@ -2459,6 +2585,7 @@ export default function App() {
           <>
             <Group name="Clipboard">
               <RibbonButton icon="⧉" label="Copy" onClick={() => void copySelected()} />
+              <RibbonButton icon="🖌" label="Format Painter" primary={Boolean(formatPainter)} onClick={copyFormat} />
               <RibbonButton icon="↓" label="Fill down" onClick={fillDown} />
               <RibbonButton icon="→" label="Fill right" onClick={fillRight} />
             </Group>
@@ -2670,6 +2797,13 @@ export default function App() {
               <RibbonButton icon="×" label="Clear rules" onClick={clearConditionalFormats} />
             </Group>
 
+            <Group name="Data tools">
+              <RibbonButton icon="≠" label="Remove duplicates" onClick={removeDuplicates} />
+              <RibbonButton icon="↦" label="Comma to columns" onClick={() => textToColumns(',')} />
+              <RibbonButton icon="⇥" label="Tab to columns" onClick={() => textToColumns('\t')} />
+              <RibbonButton icon=";" label="Semicolon split" onClick={() => textToColumns(';')} />
+            </Group>
+
             <Group name="Import & export">
               <RibbonButton icon="↑" label="Import" onClick={() => fileRef.current?.click()} />
               <RibbonButton icon="CSV" label="Export CSV" onClick={() => download(safeName(sheet.name) + '.csv', toCsv(sheet), 'text/csv')} />
@@ -2791,6 +2925,8 @@ export default function App() {
               <button className="compact" onClick={unhideAllRows}>Unhide rows</button>
               <button className="compact" onClick={hideSelectedColumns}>Hide columns</button>
               <button className="compact" onClick={unhideAllColumns}>Unhide columns</button>
+              <button className="compact" onClick={hideCurrentSheet}>Hide sheet</button>
+              <button className="compact" onClick={unhideAllSheets}>Unhide sheets</button>
             </Group>
 
             <Group name="Zoom">
@@ -3130,7 +3266,7 @@ export default function App() {
         <button className="plus" title="New sheet" onClick={addSheet}>＋</button>
 
         <div className="sheet-tabs">
-          {book.sheets.map((item) => (
+          {book.sheets.filter((item) => !item.hidden).map((item) => (
             <button
               key={item.id}
               className={item.id === book.activeSheetId ? 'active' : ''}
