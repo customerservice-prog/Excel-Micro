@@ -190,6 +190,8 @@ export default function App() {
   const [conditionalValue, setConditionalValue] = useState('')
   const [conditionalBackground, setConditionalBackground] = useState('#fff2cc')
   const [conditionalColor, setConditionalColor] = useState('#7f6000')
+  const [namedRangeOpen, setNamedRangeOpen] = useState(false)
+  const [namedRangeName, setNamedRangeName] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const columnResizeRef = useRef<{ col: number; startX: number; startWidth: number } | null>(null)
@@ -829,11 +831,18 @@ export default function App() {
   }
 
   function goToNameBox() {
-    const parsed = parseSelectionAddress(nameBox)
+    const normalizedName = nameBox.trim().toUpperCase()
+    const named = sheet.namedRanges?.[normalizedName]
+    const parsed = named
+      ? {
+          anchor: { row: named.top, col: named.left },
+          focus: { row: named.bottom, col: named.right },
+        }
+      : parseSelectionAddress(nameBox)
 
     if (!parsed) {
       setNameBox(selectionToAddress(selection))
-      setNotice('Enter a cell like B12 or range like A1:D20')
+      setNotice('Enter a cell, range, or named range')
       return
     }
 
@@ -845,6 +854,38 @@ export default function App() {
         ?.scrollIntoView({ block: 'center', inline: 'center' })
       gridRef.current?.focus()
     })
+  }
+
+  function createNamedRange() {
+    const name = namedRangeName.trim().toUpperCase()
+
+    if (!/^[A-Z_][A-Z0-9_.]*$/.test(name) || parseSelectionAddress(name)) {
+      setNotice('Use a name like SALES_TOTAL or Q1_DATA')
+      return
+    }
+
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.namedRanges ||= {}
+      s.namedRanges[name] = {
+        top: range.top,
+        bottom: range.bottom,
+        left: range.left,
+        right: range.right,
+      }
+    })
+
+    setNamedRangeName('')
+    setNotice(`Named range ${name} created`)
+  }
+
+  function removeNamedRange(name: string) {
+    mutate((next) => {
+      const s = activeSheet(next)
+      if (!s.namedRanges) return
+      delete s.namedRanges[name]
+    })
+    setNotice(`Named range ${name} removed`)
   }
 
   function smartFunction(name: 'SUM' | 'AVERAGE' | 'MIN' | 'MAX' | 'COUNT' | 'PRODUCT' | 'MEDIAN') {
@@ -1084,6 +1125,42 @@ export default function App() {
         s.filters = shiftedFilters
       }
     }
+
+    s.namedRanges = Object.fromEntries(
+      Object.entries(s.namedRanges || {}).flatMap(([name, named]) => {
+        const nextNamed = { ...named }
+
+        if (axis === 'row') {
+          if (delta === 1 && index <= nextNamed.top) {
+            nextNamed.top += 1
+            nextNamed.bottom += 1
+          } else if (delta === 1 && index <= nextNamed.bottom) {
+            nextNamed.bottom = Math.min(ROWS - 1, nextNamed.bottom + 1)
+          } else if (delta === -1 && index < nextNamed.top) {
+            nextNamed.top = Math.max(0, nextNamed.top - 1)
+            nextNamed.bottom = Math.max(nextNamed.top, nextNamed.bottom - 1)
+          } else if (delta === -1 && index <= nextNamed.bottom) {
+            if (nextNamed.top === nextNamed.bottom) return []
+            nextNamed.bottom -= 1
+          }
+        } else {
+          if (delta === 1 && index <= nextNamed.left) {
+            nextNamed.left += 1
+            nextNamed.right += 1
+          } else if (delta === 1 && index <= nextNamed.right) {
+            nextNamed.right = Math.min(COLS - 1, nextNamed.right + 1)
+          } else if (delta === -1 && index < nextNamed.left) {
+            nextNamed.left = Math.max(0, nextNamed.left - 1)
+            nextNamed.right = Math.max(nextNamed.left, nextNamed.right - 1)
+          } else if (delta === -1 && index <= nextNamed.right) {
+            if (nextNamed.left === nextNamed.right) return []
+            nextNamed.right -= 1
+          }
+        }
+
+        return [[name, nextNamed] as const]
+      }),
+    )
 
     s.conditionalFormats = (s.conditionalFormats || []).flatMap((rule) => {
       const nextRule = { ...rule }
@@ -1677,12 +1754,18 @@ export default function App() {
               <RibbonButton icon=".0" label="ROUND" onClick={() => beginEdit('=ROUND(')} />
             </Group>
 
+            <Group name="Defined names">
+              <RibbonButton icon="N" label="Name range" onClick={() => setNamedRangeOpen(true)} />
+              <RibbonButton icon="⌖" label="Manage names" onClick={() => setNamedRangeOpen(true)} />
+            </Group>
+
             <div className="formula-help">
               <strong>Formula examples</strong>
               <span>=SUM(A1:A10)</span>
               <span>=AVERAGE(B2:B20)</span>
               <span>=IF(SUM(A1:A5)&gt;100,"Over","OK")</span>
               <span>=ROUND(A1*B1,2)</span>
+              <span>=SUM(SALES)</span>
             </div>
           </>
         )}
@@ -2117,6 +2200,80 @@ export default function App() {
               <span className="spacer" />
               <button className="secondary" onClick={() => setFilterEditor(null)}>Cancel</button>
               <button className="primary-action" onClick={applyFilterEditor}>Apply filter</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {namedRangeOpen && (
+        <div className="overlay panel-overlay" onMouseDown={() => setNamedRangeOpen(false)}>
+          <div className="rule-card" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="rule-card-header">
+              <div>
+                <span className="eyebrow">DEFINED NAMES</span>
+                <h2>Named ranges</h2>
+                <p>Name {selectionToAddress(selection)} so formulas can reference it directly.</p>
+              </div>
+              <button onClick={() => setNamedRangeOpen(false)}>×</button>
+            </div>
+
+            <div className="named-range-create">
+              <label>
+                Name
+                <input
+                  autoFocus
+                  placeholder="e.g. SALES"
+                  value={namedRangeName}
+                  onChange={(e) => setNamedRangeName(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') createNamedRange()
+                    if (e.key === 'Escape') setNamedRangeOpen(false)
+                  }}
+                />
+              </label>
+              <div className="named-range-target">
+                <span>Refers to</span>
+                <strong>{selectionToAddress(selection)}</strong>
+              </div>
+              <button className="primary-action" onClick={createNamedRange}>Create</button>
+            </div>
+
+            <div className="named-range-list">
+              {Object.keys(sheet.namedRanges || {}).length === 0 ? (
+                <div className="empty-rules">No named ranges yet.</div>
+              ) : (
+                Object.entries(sheet.namedRanges || {})
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([name, named]) => (
+                    <div className="named-range-item" key={name}>
+                      <button
+                        className="named-range-name"
+                        onClick={() => {
+                          setSelection({
+                            anchor: { row: named.top, col: named.left },
+                            focus: { row: named.bottom, col: named.right },
+                          })
+                          setNamedRangeOpen(false)
+                        }}
+                      >
+                        {name}
+                      </button>
+                      <span>
+                        {selectionToAddress({
+                          anchor: { row: named.top, col: named.left },
+                          focus: { row: named.bottom, col: named.right },
+                        })}
+                      </span>
+                      <button className="remove-name" onClick={() => removeNamedRange(name)}>Remove</button>
+                    </div>
+                  ))
+              )}
+            </div>
+
+            <div className="rule-actions">
+              <span className="named-range-tip">Use names in formulas, for example =SUM(SALES)</span>
+              <span className="spacer" />
+              <button className="secondary" onClick={() => setNamedRangeOpen(false)}>Done</button>
             </div>
           </div>
         </div>
