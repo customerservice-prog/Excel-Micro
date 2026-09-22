@@ -287,16 +287,16 @@ function validationAllowsValue(rule: DataValidationRule | undefined, value: stri
   let maximum: number
 
   if (type === 'date') {
-    const parsed = Number.isFinite(Number(trimmed))
-      ? Number(trimmed)
-      : Date.parse(trimmed)
-    candidate = parsed
-    minimum = rule.minimum && Number.isFinite(Number(rule.minimum))
-      ? Number(rule.minimum)
-      : Date.parse(rule.minimum || '')
-    maximum = rule.maximum && Number.isFinite(Number(rule.maximum))
-      ? Number(rule.maximum)
-      : Date.parse(rule.maximum || '')
+    const toDateNumber = (source: string) => {
+      if (source.trim() === '') return Number.NaN
+      if (Number.isFinite(Number(source))) {
+        return Date.UTC(1899, 11, 30) + Number(source) * 86_400_000
+      }
+      return Date.parse(source)
+    }
+    candidate = toDateNumber(trimmed)
+    minimum = toDateNumber(rule.minimum || '')
+    maximum = toDateNumber(rule.maximum || '')
   } else if (type === 'textLength') {
     candidate = value.length
     minimum = Number(rule.minimum)
