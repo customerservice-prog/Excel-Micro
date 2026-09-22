@@ -838,6 +838,16 @@ export default function App() {
     setSelection({ anchor: target, focus: target })
   }
 
+  function selectedPointsForMutation(limit = 100_000) {
+    const selected = normalizeSelection(selection)
+    const area = (selected.bottom - selected.top + 1) * (selected.right - selected.left + 1)
+    if (area > limit) {
+      setNotice(`That selection contains ${area.toLocaleString()} cells. Narrow the range for this operation.`)
+      return null
+    }
+    return getSelectedPoints(selection)
+  }
+
   function openContextMenu(
     event: React.MouseEvent,
     kind: ContextMenuState['kind'],
@@ -1007,7 +1017,8 @@ export default function App() {
   }
 
   function applyFormat(patch: Partial<CellFormat>) {
-    const points = getSelectedPoints(selection)
+    const points = selectedPointsForMutation()
+    if (!points) return
 
     mutate((next) => {
       const s = activeSheet(next)
@@ -1024,7 +1035,8 @@ export default function App() {
   }
 
   function clearSelected() {
-    const points = getSelectedPoints(selection)
+    const points = selectedPointsForMutation()
+    if (!points) return
 
     mutate((next) => {
       const s = activeSheet(next)
@@ -1043,7 +1055,8 @@ export default function App() {
   }
 
   function clearFormatting() {
-    const points = getSelectedPoints(selection)
+    const points = selectedPointsForMutation()
+    if (!points) return
 
     mutate((next) => {
       const s = activeSheet(next)
