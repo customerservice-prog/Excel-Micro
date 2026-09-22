@@ -556,6 +556,38 @@ button {
   z-index: 12;
   grid-row: 1;
   cursor: pointer;
+  overflow: visible;
+}
+
+.col-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  z-index: 25;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+}
+
+.col-resizer::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 3px;
+  width: 1px;
+  height: calc(100% - 8px);
+  background: transparent;
+}
+
+.col-resizer:hover::after,
+body.is-column-resizing .col-resizer::after {
+  background: var(--excel);
+}
+
+body.is-column-resizing,
+body.is-column-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .row-head {
