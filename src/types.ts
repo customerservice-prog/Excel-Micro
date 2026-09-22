@@ -44,6 +44,18 @@ export interface ConditionalFormatRule {
   color: string
 }
 
+export type TableStyle = 'green' | 'blue' | 'orange' | 'gray'
+export interface SheetTable {
+  id: string
+  name: string
+  top: number
+  bottom: number
+  left: number
+  right: number
+  style: TableStyle
+  bandedRows: boolean
+}
+
 export interface DataValidationRule {
   id: string
   top: number
@@ -68,6 +80,7 @@ export interface SheetData {
   conditionalFormats?: ConditionalFormatRule[]
   namedRanges?: Record<string, SheetFilterRange>
   dataValidations?: DataValidationRule[]
+  tables?: SheetTable[]
 }
 
 export interface WorkbookData {
