@@ -13,6 +13,11 @@ export interface CellFormat {
   fontSize?: number
   wrap?: boolean
   decimals?: number
+  borderTop?: boolean
+  borderRight?: boolean
+  borderBottom?: boolean
+  borderLeft?: boolean
+  borderColor?: string
 }
 
 export interface CellNote {
@@ -23,6 +28,7 @@ export interface CellNote {
 export interface CellData {
   value: string
   format?: CellFormat
+  hyperlink?: string
 }
 
 export type FilterOperator = 'contains' | 'equals' | 'greaterThan' | 'lessThan' | 'notBlank'
@@ -81,6 +87,14 @@ export interface PageLayoutSettings {
   printGridlines: boolean
 }
 
+export interface MergeRange {
+  id: string
+  top: number
+  bottom: number
+  left: number
+  right: number
+}
+
 export interface SheetData {
   id: string
   name: string
@@ -99,6 +113,9 @@ export interface SheetData {
   notes?: Record<string, CellNote>
   protected?: boolean
   pageLayout?: PageLayoutSettings
+  merges?: MergeRange[]
+  hiddenRows?: Record<string, boolean>
+  hiddenColumns?: Record<string, boolean>
 }
 
 export interface WorkbookData {
