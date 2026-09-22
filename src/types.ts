@@ -67,14 +67,25 @@ export interface SheetTable {
   bandedRows: boolean
 }
 
+export type DataValidationType = 'list' | 'whole' | 'decimal' | 'date' | 'textLength'
+export type DataValidationOperator = 'between' | 'equalTo' | 'greaterThan' | 'lessThan'
+export type DataValidationErrorStyle = 'stop' | 'warning' | 'information'
+
 export interface DataValidationRule {
   id: string
   top: number
   bottom: number
   left: number
   right: number
-  options: string[]
+  type?: DataValidationType
+  options?: string[]
+  operator?: DataValidationOperator
+  minimum?: string
+  maximum?: string
   allowBlank?: boolean
+  inputTitle?: string
+  inputMessage?: string
+  errorStyle?: DataValidationErrorStyle
 }
 
 export type PageOrientation = 'portrait' | 'landscape'
