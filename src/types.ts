@@ -43,6 +43,7 @@ export interface SheetFilterRange {
   right: number
 }
 export type ConditionalFormatOperator = 'greaterThan' | 'lessThan' | 'equals' | 'contains' | 'notBlank'
+export type ConditionalFormatKind = 'cell' | 'dataBar' | 'colorScale' | 'duplicate' | 'unique'
 export interface ConditionalFormatRule {
   id: string
   top: number
@@ -53,6 +54,10 @@ export interface ConditionalFormatRule {
   value?: string
   background: string
   color: string
+  kind?: ConditionalFormatKind
+  dataBarColor?: string
+  minColor?: string
+  maxColor?: string
 }
 
 export type TableStyle = 'green' | 'blue' | 'orange' | 'gray'
