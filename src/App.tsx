@@ -2326,6 +2326,7 @@ export default function App() {
 
   const columnTemplate = useMemo(() => {
     const widths = Array.from({ length: COLS }, (_, col) => {
+      if (sheet.hiddenColumns?.[String(col)]) return '0px'
       const width = getColumnWidth(sheet, col) * zoom / 100
       return `${Math.round(width)}px`
     })
@@ -2334,12 +2335,13 @@ export default function App() {
 
   const rowTemplate = useMemo(() => {
     const heights = Array.from({ length: ROWS }, (_, row) => {
+      if (hiddenRows.has(row) || sheet.hiddenRows?.[String(row)]) return '0px'
       const height = getRowHeight(sheet, row) * zoom / 100
       return `${Math.max(20, Math.round(height))}px`
     })
     const headerHeight = Math.max(20, Math.round(DEFAULT_ROW_HEIGHT * zoom / 100))
     return `${headerHeight}px ${heights.join(' ')}`
-  }, [sheet, zoom])
+  }, [hiddenRows, sheet, zoom])
 
   const gridStyle = {
     '--row-height': `${Math.max(20, Math.round(DEFAULT_ROW_HEIGHT * zoom / 100))}px`,
@@ -2491,6 +2493,23 @@ export default function App() {
               <button className={cell.format?.align === 'center' ? 'on compact wide' : 'compact wide'} onClick={() => applyFormat({ align: 'center' })}>Center</button>
               <button className={cell.format?.align === 'right' ? 'on compact wide' : 'compact wide'} onClick={() => applyFormat({ align: 'right' })}>Right</button>
               <button className={cell.format?.wrap ? 'on compact wide' : 'compact wide'} onClick={() => applyFormat({ wrap: !cell.format?.wrap })}>Wrap</button>
+              <button className="compact wide" onClick={mergeSelection}>Merge</button>
+              <button className="compact wide" onClick={unmergeSelection}>Unmerge</button>
+            </Group>
+
+            <Group name="Borders">
+              <button className="compact" onClick={() => applyBorders('all')}>All</button>
+              <button className="compact" onClick={() => applyBorders('outside')}>Outside</button>
+              <button className="compact" onClick={() => applyBorders('bottom')}>Bottom</button>
+              <button className="compact" onClick={() => applyBorders('none')}>None</button>
+              <label className="color-label" title="Border color">
+                ▦
+                <input
+                  type="color"
+                  value={cell.format?.borderColor || '#808080'}
+                  onChange={(e) => applyFormat({ borderColor: e.target.value })}
+                />
+              </label>
             </Group>
 
             <Group name="Number">
@@ -2539,6 +2558,10 @@ export default function App() {
               <RibbonButton icon="▥" label="Bar chart" onClick={() => { setChartType('bar'); setChartOpen(true) }} />
               <RibbonButton icon="⌁" label="Line chart" onClick={() => { setChartType('line'); setChartOpen(true) }} />
               <RibbonButton icon="◔" label="Pie chart" onClick={() => { setChartType('pie'); setChartOpen(true) }} />
+            </Group>
+
+            <Group name="Links">
+              <RibbonButton icon="↗" label="Hyperlink" onClick={() => openHyperlink()} />
             </Group>
 
             <Group name="Worksheets">
@@ -2720,6 +2743,13 @@ export default function App() {
               <button className="compact" onClick={() => adjustRowHeight(-6)}>Shorter</button>
               <button className="compact" onClick={() => adjustRowHeight(6)}>Taller</button>
               <button className="compact" onClick={resetRowHeight}>Reset</button>
+            </Group>
+
+            <Group name="Visibility">
+              <button className="compact" onClick={hideSelectedRows}>Hide rows</button>
+              <button className="compact" onClick={unhideAllRows}>Unhide rows</button>
+              <button className="compact" onClick={hideSelectedColumns}>Hide columns</button>
+              <button className="compact" onClick={unhideAllColumns}>Unhide columns</button>
             </Group>
 
             <Group name="Zoom">
