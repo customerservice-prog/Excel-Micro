@@ -140,6 +140,7 @@ export function createBlankSheet(index = 1): SheetData {
     merges: [],
     hiddenRows: {},
     hiddenColumns: {},
+    objects: [],
   }
 }
 
