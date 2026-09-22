@@ -3674,7 +3674,6 @@ export default function App() {
                           className="cell-checkbox"
                           title="Checkbox"
                           onMouseDown={(e) => {
-                            e.preventDefault()
                             e.stopPropagation()
                           }}
                         >
