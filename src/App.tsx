@@ -383,6 +383,13 @@ export default function App() {
   const [validationOpen, setValidationOpen] = useState(false)
   const [validationOptions, setValidationOptions] = useState('Pending\nPaid\nCanceled')
   const [validationAllowBlank, setValidationAllowBlank] = useState(true)
+  const [validationType, setValidationType] = useState<DataValidationType>('list')
+  const [validationOperator, setValidationOperator] = useState<DataValidationOperator>('between')
+  const [validationMinimum, setValidationMinimum] = useState('0')
+  const [validationMaximum, setValidationMaximum] = useState('100')
+  const [validationInputTitle, setValidationInputTitle] = useState('')
+  const [validationInputMessage, setValidationInputMessage] = useState('')
+  const [validationErrorStyle, setValidationErrorStyle] = useState<DataValidationErrorStyle>('stop')
   const [validationPicker, setValidationPicker] = useState<{
     row: number
     col: number
