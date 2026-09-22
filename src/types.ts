@@ -56,6 +56,7 @@ export interface SheetData {
   filterRange?: SheetFilterRange
   filters?: Record<string, SheetFilterRule>
   conditionalFormats?: ConditionalFormatRule[]
+  namedRanges?: Record<string, SheetFilterRange>
 }
 
 export interface WorkbookData {
