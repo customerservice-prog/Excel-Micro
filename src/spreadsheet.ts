@@ -122,6 +122,7 @@ export function createBlankSheet(index = 1): SheetData {
     freezeFirstColumn: false,
     filters: {},
     conditionalFormats: [],
+    namedRanges: {},
   }
 }
 
