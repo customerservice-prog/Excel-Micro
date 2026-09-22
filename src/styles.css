@@ -1074,6 +1074,134 @@ body.is-row-resizing * {
   cursor: pointer;
 }
 
+.named-range-create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: end;
+  padding: 20px 22px 16px;
+}
+
+.named-range-create label {
+  display: grid;
+  gap: 6px;
+  color: #555;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.named-range-create input {
+  height: 36px;
+  border: 1px solid #c9c9c9;
+  border-radius: 5px;
+  padding: 0 9px;
+  outline: none;
+}
+
+.named-range-create input:focus {
+  border-color: var(--excel);
+  box-shadow: 0 0 0 2px rgba(16, 124, 65, 0.12);
+}
+
+.named-range-target {
+  min-width: 110px;
+  display: grid;
+  gap: 3px;
+  padding: 0 2px 2px;
+}
+
+.named-range-target span {
+  color: #777;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.named-range-target strong {
+  color: #333;
+  font-size: 11px;
+}
+
+.named-range-create > button {
+  height: 36px;
+  border: 1px solid var(--excel);
+  border-radius: 5px;
+  padding: 0 14px;
+  background: var(--excel);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.named-range-create > button:hover {
+  background: var(--excel-dark);
+}
+
+.named-range-list {
+  display: grid;
+  gap: 6px;
+  margin: 0 22px 18px;
+  padding: 10px;
+  border: 1px solid #e1e1e1;
+  border-radius: 7px;
+  background: #fafafa;
+}
+
+.named-range-item {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.8fr) minmax(100px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 34px;
+  padding: 4px 6px;
+  border-radius: 5px;
+  background: white;
+}
+
+.named-range-name {
+  border: 0;
+  background: transparent;
+  color: var(--excel-dark);
+  text-align: left;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.named-range-name:hover {
+  text-decoration: underline;
+}
+
+.named-range-item > span {
+  color: #666;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+}
+
+.remove-name {
+  border: 0;
+  background: transparent;
+  color: #a4262c;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.remove-name:hover {
+  text-decoration: underline;
+}
+
+.empty-rules {
+  padding: 16px;
+  color: #777;
+  text-align: center;
+  font-size: 11px;
+}
+
+.named-range-tip {
+  color: #6f6f6f;
+  font-size: 10px;
+}
+
 .rule-list {
   display: grid;
   gap: 7px;
@@ -1401,6 +1529,18 @@ body.is-row-resizing * {
 }
 
 @media (max-width: 680px) {
+  .named-range-create {
+    grid-template-columns: 1fr;
+  }
+
+  .named-range-item {
+    grid-template-columns: 1fr auto;
+  }
+
+  .named-range-item > span {
+    grid-column: 1 / -1;
+  }
+
   .rule-grid {
     grid-template-columns: 1fr;
   }
