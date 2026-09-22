@@ -29,6 +29,21 @@ export interface CellData {
   value: string
   format?: CellFormat
   hyperlink?: string
+  checkbox?: boolean
+}
+
+export type SheetObjectType = 'image' | 'textBox' | 'shape'
+export interface SheetObject {
+  id: string
+  type: SheetObjectType
+  row: number
+  col: number
+  width: number
+  height: number
+  src?: string
+  text?: string
+  fill?: string
+  border?: string
 }
 
 export type FilterOperator = 'contains' | 'equals' | 'greaterThan' | 'lessThan' | 'notBlank'
@@ -137,6 +152,7 @@ export interface SheetData {
   merges?: MergeRange[]
   hiddenRows?: Record<string, boolean>
   hiddenColumns?: Record<string, boolean>
+  objects?: SheetObject[]
 }
 
 export interface WorkbookData {
