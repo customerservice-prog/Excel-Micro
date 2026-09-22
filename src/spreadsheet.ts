@@ -1,7 +1,7 @@
 import type { CellData, Point, Selection, SheetData } from './types'
 
-export const ROWS = 200
-export const COLS = 52
+export const ROWS = 10_000
+export const COLS = 200
 export const DEFAULT_COLUMN_WIDTH = 106
 export const DEFAULT_ROW_HEIGHT = 25
 
