@@ -133,6 +133,9 @@ export function createBlankSheet(index = 1): SheetData {
       margins: 'normal',
       printGridlines: true,
     },
+    merges: [],
+    hiddenRows: {},
+    hiddenColumns: {},
   }
 }
 
