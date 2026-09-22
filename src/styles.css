@@ -660,6 +660,23 @@ body.is-row-resizing * {
   line-height: 1.2;
 }
 
+.conditional-data-bar {
+  position: absolute;
+  left: 1px;
+  top: 3px;
+  bottom: 3px;
+  z-index: 0;
+  border-radius: 2px;
+  opacity: 0.62;
+  pointer-events: none;
+}
+
+.cell > span,
+.cell-hyperlink {
+  position: relative;
+  z-index: 2;
+}
+
 .cell > span {
   width: 100%;
   overflow: hidden;
