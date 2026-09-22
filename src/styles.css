@@ -1431,6 +1431,31 @@ body.is-row-resizing * {
   width: min(560px, 96vw);
 }
 
+.advanced-validation-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.advanced-validation-form .validation-wide {
+  grid-column: 1 / -1;
+}
+
+.advanced-validation-form select,
+.advanced-validation-form input:not([type="checkbox"]) {
+  width: 100%;
+  height: 36px;
+  border: 1px solid #c9c9c9;
+  border-radius: 5px;
+  padding: 0 9px;
+  outline: none;
+  background: white;
+}
+
+.advanced-validation-form select:focus,
+.advanced-validation-form input:not([type="checkbox"]):focus {
+  border-color: var(--excel);
+  box-shadow: 0 0 0 2px rgba(16, 124, 65, 0.12);
+}
+
 .validation-form {
   display: grid;
   gap: 16px;
@@ -2207,6 +2232,21 @@ body.is-row-resizing * {
   display: none;
 }
 
+.print-header-text,
+.print-footer-text {
+  color: #666;
+  font-size: 9px;
+  text-align: center;
+}
+
+.print-header-text {
+  margin-bottom: 8px;
+}
+
+.print-footer-text {
+  margin-top: 8px;
+}
+
 .print-title {
   margin-bottom: 12px;
   font-size: 14px;
@@ -2306,6 +2346,14 @@ body.is-row-resizing * {
 }
 
 @media (max-width: 680px) {
+  .advanced-validation-form {
+    grid-template-columns: 1fr;
+  }
+
+  .advanced-validation-form .validation-wide {
+    grid-column: 1;
+  }
+
   .pivot-form {
     grid-template-columns: 1fr;
   }
