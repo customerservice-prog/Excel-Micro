@@ -688,6 +688,42 @@ body.is-row-resizing * {
   z-index: 1;
 }
 
+.grid-row.filtered-out {
+  display: none;
+}
+
+.cell-filter-button {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  z-index: 6;
+  width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 1px solid #cfcfcf;
+  border-radius: 3px;
+  padding: 0;
+  background: rgba(250, 250, 250, 0.96);
+  color: #5d5d5d;
+  font-size: 8px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.cell-filter-button:hover,
+.cell-filter-button.is-active {
+  border-color: #85b89b;
+  background: #e4f2e9;
+  color: var(--excel-dark);
+}
+
+.cell-filter-button.is-active {
+  font-size: 7px;
+}
+
 .cell.active {
   z-index: 7;
   overflow: visible;
@@ -933,6 +969,201 @@ body.is-row-resizing * {
   backdrop-filter: blur(3px);
 }
 
+.panel-overlay {
+  z-index: 240;
+}
+
+.rule-card {
+  width: min(650px, 96vw);
+  max-height: min(760px, 90vh);
+  overflow: auto;
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  border-radius: 12px;
+  background: white;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.25);
+}
+
+.filter-card {
+  width: min(470px, 94vw);
+}
+
+.rule-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid #ececec;
+  background: linear-gradient(#fff, #fafafa);
+}
+
+.rule-card-header .eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--excel);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.rule-card-header h2 {
+  margin: 0 0 4px;
+  font-size: 19px;
+}
+
+.rule-card-header p {
+  margin: 0;
+  color: #747474;
+  font-size: 11px;
+}
+
+.rule-card-header > button {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 23px;
+  cursor: pointer;
+}
+
+.rule-card-header > button:hover {
+  background: #ededed;
+}
+
+.rule-form {
+  display: grid;
+  gap: 14px;
+  padding: 20px 22px;
+}
+
+.rule-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.rule-form label {
+  display: grid;
+  gap: 6px;
+  color: #555;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.rule-form input,
+.rule-form select {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  border: 1px solid #c9c9c9;
+  border-radius: 5px;
+  padding: 0 9px;
+  outline: none;
+  background: white;
+  color: #252525;
+  font-weight: 400;
+}
+
+.rule-form input:focus,
+.rule-form select:focus {
+  border-color: var(--excel);
+  box-shadow: 0 0 0 2px rgba(16, 124, 65, 0.12);
+}
+
+.rule-form input[type="color"] {
+  padding: 4px;
+  cursor: pointer;
+}
+
+.rule-list {
+  display: grid;
+  gap: 7px;
+  margin: 0 22px 18px;
+  padding: 13px;
+  border: 1px solid #e3e3e3;
+  border-radius: 7px;
+  background: #fafafa;
+}
+
+.rule-list > strong {
+  margin-bottom: 2px;
+  color: #555;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rule-list-item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
+  min-height: 34px;
+  color: #444;
+  font-size: 10px;
+}
+
+.rule-swatch {
+  width: 30px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.rule-list-item button {
+  border: 0;
+  background: transparent;
+  color: #a4262c;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.rule-list-item button:hover {
+  text-decoration: underline;
+}
+
+.rule-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 22px 20px;
+  border-top: 1px solid #ececec;
+}
+
+.rule-actions .spacer {
+  flex: 1;
+}
+
+.rule-actions button {
+  height: 34px;
+  border: 1px solid #c9c9c9;
+  border-radius: 5px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.rule-actions .secondary {
+  background: white;
+  color: #333;
+}
+
+.rule-actions .secondary:hover {
+  background: #f4f4f4;
+}
+
+.rule-actions .primary-action {
+  border-color: var(--excel);
+  background: var(--excel);
+  color: white;
+  font-weight: 700;
+}
+
+.rule-actions .primary-action:hover {
+  background: var(--excel-dark);
+}
+
 .chart-card {
   width: min(900px, 96vw);
   background: white;
@@ -1170,6 +1401,14 @@ body.is-row-resizing * {
 }
 
 @media (max-width: 680px) {
+  .rule-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rule-actions {
+    flex-wrap: wrap;
+  }
+
   .app-shell {
     grid-template-rows: 46px 32px 36px 88px 36px minmax(0, 1fr) 38px 26px;
   }
