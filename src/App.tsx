@@ -102,7 +102,8 @@ function formatted(cell: CellData, sheet: SheetData) {
 
   if (!Number.isFinite(n) || value === '') return value
 
-  if (format === 'currency') {
+  if (format === 'currency' || format === 'accounting') {
+    if (format === 'accounting' && n === 0) return '–'
     return n.toLocaleString(undefined, {
       style: 'currency',
       currency: 'USD',
@@ -117,6 +118,40 @@ function formatted(cell: CellData, sheet: SheetData) {
       minimumFractionDigits: decimals ?? 0,
       maximumFractionDigits: decimals ?? 2,
     })
+  }
+
+  if (format === 'date' || format === 'time' || format === 'datetime') {
+    const date = new Date(Date.UTC(1899, 11, 30) + n * 86_400_000)
+    if (Number.isNaN(date.getTime())) return value
+    if (format === 'date') return date.toLocaleDateString()
+    if (format === 'time') {
+      return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', second: '2-digit' })
+    }
+    return date.toLocaleString()
+  }
+
+  if (format === 'scientific') return n.toExponential(decimals ?? 2)
+
+  if (format === 'fraction') {
+    const sign = n < 0 ? '-' : ''
+    const absolute = Math.abs(n)
+    const whole = Math.floor(absolute)
+    const fraction = absolute - whole
+    if (fraction < 1e-10) return sign + whole
+    let bestNumerator = 0
+    let bestDenominator = 1
+    let bestError = Number.POSITIVE_INFINITY
+    for (let denominator = 1; denominator <= 64; denominator += 1) {
+      const numerator = Math.round(fraction * denominator)
+      const error = Math.abs(fraction - numerator / denominator)
+      if (error < bestError) {
+        bestNumerator = numerator
+        bestDenominator = denominator
+        bestError = error
+      }
+    }
+    const prefix = whole ? whole + ' ' : ''
+    return sign + prefix + bestNumerator + '/' + bestDenominator
   }
 
   if (format === 'number') {
@@ -735,7 +770,7 @@ export default function App() {
         const key = cellKey(p.row, p.col)
         const old = s.cells[key]
         if (!old) return
-        if (old.value) s.cells[key] = { value: old.value }
+        if (old.value || old.hyperlink) s.cells[key] = { value: old.value, hyperlink: old.hyperlink }
         else delete s.cells[key]
       })
     })
@@ -2520,7 +2555,13 @@ export default function App() {
                 <option value="general">General</option>
                 <option value="number">Number</option>
                 <option value="currency">Currency</option>
+                <option value="accounting">Accounting</option>
                 <option value="percent">Percent</option>
+                <option value="date">Date</option>
+                <option value="time">Time</option>
+                <option value="datetime">Date & Time</option>
+                <option value="scientific">Scientific</option>
+                <option value="fraction">Fraction</option>
               </select>
               <button className="compact" title="Decrease decimals" onClick={() => adjustDecimals(-1)}>.0←</button>
               <button className="compact" title="Increase decimals" onClick={() => adjustDecimals(1)}>→.00</button>
