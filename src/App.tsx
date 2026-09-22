@@ -3075,6 +3075,10 @@ export default function App() {
 
             <Group name="Conditional formatting">
               <RibbonButton icon="▦" label="New rule" onClick={() => setConditionalOpen(true)} />
+              <RibbonButton icon="▰" label="Data bars" onClick={() => addConditionalVisual('dataBar')} />
+              <RibbonButton icon="◫" label="Color scale" onClick={() => addConditionalVisual('colorScale')} />
+              <RibbonButton icon="2×" label="Duplicates" onClick={() => addConditionalVisual('duplicate')} />
+              <RibbonButton icon="1×" label="Unique" onClick={() => addConditionalVisual('unique')} />
               <RibbonButton icon="×" label="Clear rules" onClick={clearConditionalFormats} />
             </Group>
 
