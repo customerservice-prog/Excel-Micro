@@ -336,7 +336,11 @@ export default function App() {
   }, [selection])
 
   useEffect(() => {
-    localStorage.setItem(VERSION_STORAGE_KEY, JSON.stringify(versions.slice(0, 12)))
+    try {
+      localStorage.setItem(VERSION_STORAGE_KEY, JSON.stringify(versions.slice(0, 12)))
+    } catch {
+      window.setTimeout(() => setNotice('Version history storage is full in this browser.'), 0)
+    }
   }, [versions])
 
   useEffect(() => {
@@ -2320,7 +2324,7 @@ export default function App() {
               <span>=IF(SUM(A1:A5)&gt;100,"Over","OK")</span>
               <span>=ROUND(A1*B1,2)</span>
               <span>=SUM(SALES)</span>
-              <span>=COUNTIF(A:A,"Paid")</span>
+              <span>=COUNTIF(A2:A100,"Paid")</span>
               <span>=XLOOKUP(A2,IDs,Names,"Not found")</span>
             </div>
           </>
