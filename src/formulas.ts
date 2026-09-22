@@ -796,6 +796,166 @@ class Parser {
 
     if (name === 'CONCAT' || name === 'CONCATENATE') return values.map(toText).join('')
 
+    if (name === 'SUMPRODUCT') {
+      const arrays = args.map(asList)
+      const length = Math.max(0, ...arrays.map((array) => array.length))
+      let total = 0
+      for (let index = 0; index < length; index += 1) {
+        let product = 1
+        for (const array of arrays) product *= toNumber(array[index] ?? 0)
+        total += product
+      }
+      return total
+    }
+
+    if (name === 'LARGE' || name === 'SMALL') {
+      const source = numericValues([args[0] ?? []]).sort((a, b) => a - b)
+      const k = Math.trunc(toNumber(args[1] ?? 1))
+      if (k < 1 || k > source.length) return '#NUM!'
+      return name === 'LARGE' ? source[source.length - k] : source[k - 1]
+    }
+
+    if (name === 'RANK' || name === 'RANK.EQ') {
+      const value = toNumber(args[0] ?? 0)
+      const source = numericValues([args[1] ?? []])
+      const descending = toNumber(args[2] ?? 0) === 0
+      const sorted = [...source].sort((a, b) => descending ? b - a : a - b)
+      const index = sorted.findIndex((candidate) => candidate === value)
+      return index === -1 ? '#N/A' : index + 1
+    }
+
+    if (name === 'STDEV' || name === 'STDEV.S' || name === 'STDEV.P') {
+      if (!nums.length) return '#DIV/0!'
+      const mean = nums.reduce((sum, value) => sum + value, 0) / nums.length
+      const divisor = name === 'STDEV.P' ? nums.length : nums.length - 1
+      if (divisor <= 0) return '#DIV/0!'
+      const variance = nums.reduce((sum, value) => sum + (value - mean) ** 2, 0) / divisor
+      return Math.sqrt(variance)
+    }
+
+    if (name === 'VAR' || name === 'VAR.S' || name === 'VAR.P') {
+      if (!nums.length) return '#DIV/0!'
+      const mean = nums.reduce((sum, value) => sum + value, 0) / nums.length
+      const divisor = name === 'VAR.P' ? nums.length : nums.length - 1
+      if (divisor <= 0) return '#DIV/0!'
+      return nums.reduce((sum, value) => sum + (value - mean) ** 2, 0) / divisor
+    }
+
+    if (name === 'PERCENTILE' || name === 'PERCENTILE.INC') {
+      const source = numericValues([args[0] ?? []]).sort((a, b) => a - b)
+      const percentile = toNumber(args[1] ?? 0)
+      if (!source.length || percentile < 0 || percentile > 1) return '#NUM!'
+      const position = (source.length - 1) * percentile
+      const lower = Math.floor(position)
+      const upper = Math.ceil(position)
+      if (lower === upper) return source[lower]
+      const ratio = position - lower
+      return source[lower] + (source[upper] - source[lower]) * ratio
+    }
+
+    if (name === 'INT') return Math.floor(toNumber(args[0] ?? 0))
+    if (name === 'SIGN') return Math.sign(toNumber(args[0] ?? 0))
+    if (name === 'PI') return Math.PI
+    if (name === 'EXP') return Math.exp(toNumber(args[0] ?? 0))
+    if (name === 'LN') return Math.log(toNumber(args[0] ?? 0))
+    if (name === 'LOG10') return Math.log10(toNumber(args[0] ?? 0))
+    if (name === 'LOG') {
+      const value = toNumber(args[0] ?? 0)
+      const base = toNumber(args[1] ?? 10)
+      return Math.log(value) / Math.log(base)
+    }
+
+    if (name === 'CEILING' || name === 'CEILING.MATH') {
+      const value = toNumber(args[0] ?? 0)
+      const significance = Math.abs(toNumber(args[1] ?? 1)) || 1
+      return Math.ceil(value / significance) * significance
+    }
+
+    if (name === 'FLOOR' || name === 'FLOOR.MATH') {
+      const value = toNumber(args[0] ?? 0)
+      const significance = Math.abs(toNumber(args[1] ?? 1)) || 1
+      return Math.floor(value / significance) * significance
+    }
+
+    if (name === 'ISNUMBER') return isNumeric(args[0] ?? '')
+    if (name === 'ISTEXT') return typeof (args[0] ?? '') === 'string' && !isErrorValue(args[0] ?? '')
+    if (name === 'ISERROR') return isErrorValue(args[0] ?? '')
+    if (name === 'ISBLANK') return toText(args[0] ?? '') === ''
+    if (name === 'VALUE') {
+      const source = toText(args[0] ?? '').replace(/[$,%]/g, '')
+      const parsed = Number(source)
+      return Number.isFinite(parsed) ? parsed : '#VALUE!'
+    }
+
+    if (name === 'TIME') {
+      const hour = toNumber(args[0] ?? 0)
+      const minute = toNumber(args[1] ?? 0)
+      const second = toNumber(args[2] ?? 0)
+      return (hour * 3600 + minute * 60 + second) / 86400
+    }
+
+    if (name === 'DATEVALUE') {
+      const date = new Date(toText(args[0] ?? ''))
+      return Number.isNaN(date.getTime()) ? '#VALUE!' : excelSerialFromDate(date)
+    }
+
+    if (name === 'TIMEVALUE') {
+      const text = toText(args[0] ?? '')
+      const date = new Date('1970-01-01T' + text)
+      if (Number.isNaN(date.getTime())) return '#VALUE!'
+      return (date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds()) / 86400
+    }
+
+    if (name === 'WEEKDAY') {
+      const date = dateFromFormulaValue(args[0] ?? '')
+      if (!date) return '#VALUE!'
+      const returnType = Math.trunc(toNumber(args[1] ?? 1))
+      const day = date.getUTCDay()
+      if (returnType === 2) return day === 0 ? 7 : day
+      return day + 1
+    }
+
+    if (name === 'DAYS') {
+      const end = dateFromFormulaValue(args[0] ?? '')
+      const start = dateFromFormulaValue(args[1] ?? '')
+      if (!end || !start) return '#VALUE!'
+      return Math.round((end.getTime() - start.getTime()) / DAY_MS)
+    }
+
+    if (name === 'PMT') {
+      const rate = toNumber(args[0] ?? 0)
+      const periods = toNumber(args[1] ?? 0)
+      const presentValue = toNumber(args[2] ?? 0)
+      const futureValue = toNumber(args[3] ?? 0)
+      const due = toNumber(args[4] ?? 0)
+      if (periods === 0) return '#DIV/0!'
+      if (rate === 0) return -(presentValue + futureValue) / periods
+      const factor = (1 + rate) ** periods
+      return -(rate * (presentValue * factor + futureValue)) / ((1 + rate * due) * (factor - 1))
+    }
+
+    if (name === 'FV') {
+      const rate = toNumber(args[0] ?? 0)
+      const periods = toNumber(args[1] ?? 0)
+      const payment = toNumber(args[2] ?? 0)
+      const presentValue = toNumber(args[3] ?? 0)
+      const due = toNumber(args[4] ?? 0)
+      if (rate === 0) return -(presentValue + payment * periods)
+      const factor = (1 + rate) ** periods
+      return -(presentValue * factor + payment * (1 + rate * due) * (factor - 1) / rate)
+    }
+
+    if (name === 'PV') {
+      const rate = toNumber(args[0] ?? 0)
+      const periods = toNumber(args[1] ?? 0)
+      const payment = toNumber(args[2] ?? 0)
+      const futureValue = toNumber(args[3] ?? 0)
+      const due = toNumber(args[4] ?? 0)
+      if (rate === 0) return -futureValue - payment * periods
+      const factor = (1 + rate) ** periods
+      return -(futureValue + payment * (1 + rate * due) * (factor - 1) / rate) / factor
+    }
+
     return `#NAME? ${name}`
   }
 }
