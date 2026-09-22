@@ -2,7 +2,7 @@
 
 Excel Micro is a browser-based spreadsheet workspace built from scratch as a modern, lightweight Excel-style application.
 
-## Excel Micro 0.7
+## Excel Micro 0.8
 
 The current release is a real working spreadsheet core, not a static spreadsheet mockup.
 
@@ -58,6 +58,14 @@ Supported examples include:
 =RIGHT(A1,3)
 =MID(A1,2,4)
 =CONCAT(A1," ",B1)
+=COUNTIF(A2:A100,"Paid")
+=SUMIF(B2:B100,">100",C2:C100)
+=AVERAGEIF(B2:B100,">0",C2:C100)
+=XLOOKUP(A2,IDs,Names,"Not found")
+=MATCH(A2,IDs,0)
+=INDEX(Names,3)
+=IFERROR(A1/B1,0)
+=TEXTJOIN(", ",TRUE,A2:A10)
 ```
 
 Nested formulas, comparisons, percentages, ranges, strings, booleans, arithmetic operators, exponentiation, and text concatenation are supported.
@@ -186,6 +194,42 @@ Right-click directly where you are working:
 - Validation ranges shift with inserted/deleted rows and columns
 - Clear validation from the selected range
 
+### Notes and Review
+
+- Add or edit a note on any cell
+- Red corner indicator for cells with notes
+- Notes move with inserted/deleted rows and columns
+- Review ribbon
+- Protect / unprotect worksheet editing
+- Protected sheets block mutations through the shared workbook edit engine
+
+### Local version history
+
+- Save full workbook restore points from Review
+- Restore an earlier workbook version
+- Delete old versions
+- Up to 12 local versions kept in the browser
+- Browser-storage quota errors are handled without breaking the workbook
+
+### PivotTable-style summaries
+
+- Build a summary from a selected tabular range
+- Choose a Rows field
+- Choose a Values field
+- Sum, Count, or Average aggregation
+- Pivot result is created on a new worksheet
+- Output gets basic spreadsheet formatting and sizing
+
+### Page Layout and printing
+
+- Dedicated Page Layout ribbon
+- Portrait / Landscape orientation
+- Letter / A4 paper sizes
+- Normal / Narrow / Wide margins
+- Print gridlines on/off
+- Print the active sheet's used range with workbook/sheet title
+- Table and conditional formatting are reflected in the print surface
+
 ### File compatibility
 
 - Import `.xlsx`
@@ -267,15 +311,8 @@ GitHub Actions runs on every push to `main` and on pull requests. CI:
 - Browser localStorage persistence
 - Lightweight Node production server
 
-## Next major phases
+## Excel parity status
 
-Excel Micro 0.7 is still local-first. The next major product layers are:
+Excel Micro 0.8 is substantially more capable, but it is **not full Microsoft Excel parity**. The repository now includes an explicit `EXCEL_PARITY.md` roadmap that tracks what is built, partial, and still missing.
 
-1. Accounts and cloud workbooks
-2. Share links and permissions
-3. Real-time multiplayer editing
-4. Comments and version history
-5. More Excel-compatible formulas
-6. Pivot tables
-7. Print and page layout
-8. Large-sheet virtualization and worker-based calculations
+The largest remaining layers include cloud accounts and collaboration, dynamic-array formulas, much broader Excel formula compatibility, advanced PivotTables, more chart families, merge cells and borders, images/shapes, hyperlinks, macros/scripts, Power Query-style data transformation, external data connections, advanced protection, accessibility refinements, and large-sheet virtualization.
