@@ -907,6 +907,111 @@ body.is-row-resizing * {
   z-index: 15;
 }
 
+.cell-checkbox {
+  position: relative;
+  z-index: 6;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.cell-checkbox input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--excel);
+  cursor: pointer;
+}
+
+.cell-checkbox input:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.sheet-object {
+  position: relative;
+  z-index: 28;
+  min-width: 40px;
+  min-height: 30px;
+  overflow: hidden;
+  border: 1px solid #8c8c8c;
+  border-radius: 4px;
+  background: white;
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.13),
+    0 1px 3px rgba(0, 0, 0, 0.08);
+  cursor: default;
+}
+
+.sheet-object:hover {
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.18),
+    0 1px 4px rgba(0, 0, 0, 0.09);
+}
+
+.sheet-object-image {
+  background: #fafafa;
+}
+
+.sheet-object-image img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.sheet-object-text,
+.sheet-object-shape {
+  width: 100%;
+  height: 100%;
+}
+
+.sheet-object-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px;
+  overflow: hidden;
+  color: #303030;
+  text-align: center;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11px;
+}
+
+.sheet-object-shape {
+  border-radius: 12px;
+}
+
+.sheet-object-delete {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  z-index: 4;
+  width: 22px;
+  height: 22px;
+  display: none;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  padding: 0;
+  background: rgba(32, 32, 32, 0.78);
+  color: white;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.sheet-object:hover .sheet-object-delete {
+  display: grid;
+}
+
+.sheet-object-delete:hover {
+  background: #a4262c;
+}
+
 .cell-input {
   position: absolute;
   left: 1px;
