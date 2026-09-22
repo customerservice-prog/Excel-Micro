@@ -5076,3 +5076,79 @@ function Chart({
     </div>
   )
 }
+
+function MiniChart({
+  data,
+  type,
+}: {
+  data: { label: string; value: number }[]
+  type: ChartType
+}) {
+  if (!data.length) return <div className="mini-chart-empty">No numeric data</div>
+
+  const sample = data.slice(0, 16)
+  const max = Math.max(...sample.map((item) => Math.abs(item.value)), 1)
+  const min = Math.min(0, ...sample.map((item) => item.value))
+  const maxValue = Math.max(0, ...sample.map((item) => item.value))
+  const span = Math.max(1, maxValue - min)
+
+  if (type === 'pie') {
+    const positive = sample
+      .map((item) => ({ ...item, magnitude: Math.abs(item.value) }))
+      .filter((item) => item.magnitude > 0)
+    const total = positive.reduce((sum, item) => sum + item.magnitude, 0)
+    if (!total) return <div className="mini-chart-empty">No non-zero values</div>
+
+    let cursor = 0
+    const gradient = positive.map((item, index) => {
+      const start = cursor
+      const end = cursor + item.magnitude / total * 100
+      cursor = end
+      const color = `hsl(${(index * 67 + 142) % 360} 55% 44%)`
+      return `${color} ${start}% ${end}%`
+    }).join(', ')
+
+    return (
+      <div className="mini-chart mini-pie-chart">
+        <div className="mini-pie" style={{ background: `conic-gradient(${gradient})` }} />
+        <div className="mini-chart-caption">{positive.length} categories</div>
+      </div>
+    )
+  }
+
+  if (type === 'line') {
+    const width = 360
+    const height = 180
+    const padding = 22
+    const xStep = sample.length > 1 ? (width - padding * 2) / (sample.length - 1) : 0
+    const points = sample.map((item, index) => {
+      const x = padding + index * xStep
+      const y = padding + (maxValue - item.value) / span * (height - padding * 2)
+      return `${x},${y}`
+    }).join(' ')
+
+    return (
+      <div className="mini-chart">
+        <svg viewBox={`0 0 ${width} ${height}`} className="mini-line-svg" aria-label="Worksheet line chart">
+          <polyline points={points} className="mini-line" fill="none" />
+          {sample.map((item, index) => {
+            const x = padding + index * xStep
+            const y = padding + (maxValue - item.value) / span * (height - padding * 2)
+            return <circle key={index} cx={x} cy={y} r="3" className="mini-line-point" />
+          })}
+        </svg>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mini-chart mini-bars">
+      {sample.map((item, index) => (
+        <div className="mini-bar-column" key={index} title={`${item.label}: ${item.value}`}>
+          <div className="mini-bar" style={{ height: `${Math.max(3, Math.abs(item.value) / max * 100)}%` }} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
