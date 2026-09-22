@@ -31,6 +31,7 @@ import type {
   Point,
   Selection,
   SheetData,
+  TableStyle,
   WorkbookData,
 } from './types'
 
@@ -152,6 +153,47 @@ function conditionalStyleForCell(sheet: SheetData, row: number, col: number, val
   return { background, color }
 }
 
+const TABLE_PALETTES: Record<TableStyle, { header: string; band: string; text: string }> = {
+  green: { header: '#107c41', band: '#eaf4ee', text: '#ffffff' },
+  blue: { header: '#2b579a', band: '#eaf0f8', text: '#ffffff' },
+  orange: { header: '#c65911', band: '#fbefe6', text: '#ffffff' },
+  gray: { header: '#5b5b5b', band: '#f1f1f1', text: '#ffffff' },
+}
+
+function tableStyleForCell(sheet: SheetData, row: number, col: number) {
+  const tables = sheet.tables || []
+
+  for (let index = tables.length - 1; index >= 0; index -= 1) {
+    const table = tables[index]
+    if (row < table.top || row > table.bottom || col < table.left || col > table.right) continue
+
+    const palette = TABLE_PALETTES[table.style]
+    if (row === table.top) {
+      return {
+        background: palette.header,
+        color: palette.text,
+        bold: true,
+        header: true,
+      }
+    }
+
+    const banded = table.bandedRows && (row - table.top) % 2 === 0
+    return {
+      background: banded ? palette.band : undefined,
+      color: undefined,
+      bold: false,
+      header: false,
+    }
+  }
+
+  return {
+    background: undefined,
+    color: undefined,
+    bold: false,
+    header: false,
+  }
+}
+
 function dataValidationForCell(sheet: SheetData, row: number, col: number) {
   const rules = sheet.dataValidations || []
   for (let index = rules.length - 1; index >= 0; index -= 1) {
@@ -215,6 +257,10 @@ export default function App() {
     y: number
     ruleId: string
   } | null>(null)
+  const [tableOpen, setTableOpen] = useState(false)
+  const [tableName, setTableName] = useState('Table1')
+  const [tableStyle, setTableStyle] = useState<TableStyle>('green')
+  const [tableBandedRows, setTableBandedRows] = useState(true)
   const fileRef = useRef<HTMLInputElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const columnResizeRef = useRef<{ col: number; startX: number; startWidth: number } | null>(null)
@@ -1221,6 +1267,40 @@ export default function App() {
       }),
     )
 
+    s.tables = (s.tables || []).flatMap((table) => {
+      const nextTable = { ...table }
+
+      if (axis === 'row') {
+        if (delta === 1 && index <= nextTable.top) {
+          nextTable.top += 1
+          nextTable.bottom += 1
+        } else if (delta === 1 && index <= nextTable.bottom) {
+          nextTable.bottom = Math.min(ROWS - 1, nextTable.bottom + 1)
+        } else if (delta === -1 && index < nextTable.top) {
+          nextTable.top = Math.max(0, nextTable.top - 1)
+          nextTable.bottom = Math.max(nextTable.top, nextTable.bottom - 1)
+        } else if (delta === -1 && index <= nextTable.bottom) {
+          if (nextTable.top === nextTable.bottom) return []
+          nextTable.bottom -= 1
+        }
+      } else {
+        if (delta === 1 && index <= nextTable.left) {
+          nextTable.left += 1
+          nextTable.right += 1
+        } else if (delta === 1 && index <= nextTable.right) {
+          nextTable.right = Math.min(COLS - 1, nextTable.right + 1)
+        } else if (delta === -1 && index < nextTable.left) {
+          nextTable.left = Math.max(0, nextTable.left - 1)
+          nextTable.right = Math.max(nextTable.left, nextTable.right - 1)
+        } else if (delta === -1 && index <= nextTable.right) {
+          if (nextTable.left === nextTable.right) return []
+          nextTable.right -= 1
+        }
+      }
+
+      return [nextTable]
+    })
+
     s.dataValidations = (s.dataValidations || []).flatMap((rule) => {
       const nextRule = { ...rule }
 
@@ -1412,6 +1492,82 @@ export default function App() {
       activeSheet(next).filters = {}
     })
     setNotice('Filter conditions cleared')
+  }
+
+  function nextTableName() {
+    const existing = new Set((sheet.tables || []).map((table) => table.name.toLowerCase()))
+    let index = 1
+    while (existing.has(`table${index}`)) index += 1
+    return `Table${index}`
+  }
+
+  function openTableDialog() {
+    setTableName(nextTableName())
+    setTableOpen(true)
+  }
+
+  function addTable() {
+    const selected = normalizeSelection(selection)
+    const target = selected.bottom > selected.top ? selected : usedRange()
+
+    if (target.bottom <= target.top) {
+      setNotice('Select a header row plus at least one data row')
+      return
+    }
+
+    let name = tableName.trim().replace(/[^A-Za-z0-9_]/g, '_') || nextTableName()
+    const existing = new Set((sheet.tables || []).map((table) => table.name.toLowerCase()))
+    if (existing.has(name.toLowerCase())) {
+      let suffix = 2
+      const base = name
+      while (existing.has(`${base}_${suffix}`.toLowerCase())) suffix += 1
+      name = `${base}_${suffix}`
+    }
+
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.tables ||= []
+      s.tables.push({
+        id: crypto.randomUUID(),
+        name,
+        top: target.top,
+        bottom: target.bottom,
+        left: target.left,
+        right: target.right,
+        style: tableStyle,
+        bandedRows: tableBandedRows,
+      })
+      s.filterRange = { ...target }
+      s.filters = {}
+    })
+
+    setSelection({
+      anchor: { row: target.top, col: target.left },
+      focus: { row: target.bottom, col: target.right },
+    })
+    setTableOpen(false)
+    setNotice(`${name} created`)
+  }
+
+  function removeTable(id: string) {
+    mutate((next) => {
+      const s = activeSheet(next)
+      const table = (s.tables || []).find((item) => item.id === id)
+      s.tables = (s.tables || []).filter((item) => item.id !== id)
+
+      if (
+        table &&
+        s.filterRange &&
+        s.filterRange.top === table.top &&
+        s.filterRange.bottom === table.bottom &&
+        s.filterRange.left === table.left &&
+        s.filterRange.right === table.right
+      ) {
+        delete s.filterRange
+        s.filters = {}
+      }
+    })
+    setNotice('Table removed')
   }
 
   function addDataValidation() {
@@ -1874,6 +2030,10 @@ export default function App() {
               <RibbonButton icon="↓" label="Minimum" onClick={() => smartFunction('MIN')} />
             </Group>
 
+            <Group name="Tables">
+              <RibbonButton icon="▦" label="Format as table" primary onClick={openTableDialog} />
+            </Group>
+
             <Group name="Visuals">
               <RibbonButton icon="▥" label="Bar chart" onClick={() => { setChartType('bar'); setChartOpen(true) }} />
               <RibbonButton icon="⌁" label="Line chart" onClick={() => { setChartType('line'); setChartOpen(true) }} />
@@ -2134,6 +2294,7 @@ export default function App() {
                   ].filter(Boolean).join(' ')
                   const display = formatted(data, sheet)
                   const conditionalStyle = conditionalStyleForCell(sheet, row, col, display)
+                  const tableStyleInfo = tableStyleForCell(sheet, row, col)
                   const filterHeader = Boolean(
                     sheet.filterRange &&
                     row === sheet.filterRange.top &&
@@ -2153,15 +2314,16 @@ export default function App() {
                         (active ? 'active ' : '') +
                         frozenClass +
                         (data.format?.wrap ? ' wrap ' : '') +
-                        (validationRule ? ' validation-cell ' : '')
+                        (validationRule ? ' validation-cell ' : '') +
+                        (tableStyleInfo.header ? ' table-header-cell ' : '')
                       }
                       style={{
-                        fontWeight: data.format?.bold ? 700 : 400,
+                        fontWeight: data.format?.bold ? 700 : tableStyleInfo.bold ? 700 : 400,
                         fontStyle: data.format?.italic ? 'italic' : 'normal',
                         textDecoration: decoration || 'none',
                         textAlign: data.format?.align || 'left',
-                        color: conditionalStyle.color || data.format?.color,
-                        background: conditionalStyle.background || data.format?.background,
+                        color: conditionalStyle.color || data.format?.color || tableStyleInfo.color,
+                        background: conditionalStyle.background || data.format?.background || tableStyleInfo.background,
                         fontSize: data.format?.fontSize ? `${data.format.fontSize}px` : undefined,
                       }}
                       onMouseDown={(e) => {
@@ -2340,6 +2502,90 @@ export default function App() {
               ))}
             </div>
             <Chart data={chart} type={chartType} />
+          </div>
+        </div>
+      )}
+
+      {tableOpen && (
+        <div className="overlay panel-overlay" onMouseDown={() => setTableOpen(false)}>
+          <div className="rule-card table-card" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="rule-card-header">
+              <div>
+                <span className="eyebrow">FORMAT AS TABLE</span>
+                <h2>Create table</h2>
+                <p>Turn {selectionToAddress(selection)} into a structured, filterable data table.</p>
+              </div>
+              <button onClick={() => setTableOpen(false)}>×</button>
+            </div>
+
+            <div className="table-form">
+              <label>
+                Table name
+                <input value={tableName} onChange={(e) => setTableName(e.target.value)} />
+              </label>
+
+              <div className="table-style-field">
+                <span>Style</span>
+                <div className="table-style-grid">
+                  {(Object.keys(TABLE_PALETTES) as TableStyle[]).map((style) => (
+                    <button
+                      key={style}
+                      className={'table-style-option ' + (tableStyle === style ? 'active' : '')}
+                      onClick={() => setTableStyle(style)}
+                    >
+                      <span style={{ background: TABLE_PALETTES[style].header }} />
+                      <span style={{ background: TABLE_PALETTES[style].band }} />
+                      <strong>{style}</strong>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <label className="validation-checkbox">
+                <input
+                  type="checkbox"
+                  checked={tableBandedRows}
+                  onChange={(e) => setTableBandedRows(e.target.checked)}
+                />
+                Banded rows
+              </label>
+            </div>
+
+            {(sheet.tables || []).length > 0 && (
+              <div className="table-list">
+                <strong>Tables on this sheet</strong>
+                {(sheet.tables || []).map((table) => (
+                  <div className="table-list-item" key={table.id}>
+                    <span className="table-list-swatch" style={{ background: TABLE_PALETTES[table.style].header }} />
+                    <button
+                      onClick={() => {
+                        setSelection({
+                          anchor: { row: table.top, col: table.left },
+                          focus: { row: table.bottom, col: table.right },
+                        })
+                        setTableOpen(false)
+                      }}
+                    >
+                      {table.name}
+                    </button>
+                    <span>
+                      {selectionToAddress({
+                        anchor: { row: table.top, col: table.left },
+                        focus: { row: table.bottom, col: table.right },
+                      })}
+                    </span>
+                    <button className="remove-table" onClick={() => removeTable(table.id)}>Remove</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="rule-actions">
+              <span className="named-range-tip">The first row becomes the table header and gets filter controls.</span>
+              <span className="spacer" />
+              <button className="secondary" onClick={() => setTableOpen(false)}>Cancel</button>
+              <button className="primary-action" onClick={addTable}>Create table</button>
+            </div>
           </div>
         </div>
       )}
