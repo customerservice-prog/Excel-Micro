@@ -85,6 +85,10 @@ export interface PageLayoutSettings {
   paperSize: PagePaperSize
   margins: PageMargins
   printGridlines: boolean
+  printArea?: SheetFilterRange
+  scalePercent?: number
+  headerText?: string
+  footerText?: string
 }
 
 export interface MergeRange {
