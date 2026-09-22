@@ -416,7 +416,7 @@ class Parser {
 
     for (let row = Math.min(start.row, end.row); row <= Math.max(start.row, end.row); row += 1) {
       for (let col = Math.min(start.col, end.col); col <= Math.max(start.col, end.col); col += 1) {
-        values.push(this.cellValue(`${String.fromCharCode(65)}1`) && this.cellByPoint(row, col))
+        values.push(this.cellByPoint(row, col))
       }
     }
 
