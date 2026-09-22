@@ -2,14 +2,14 @@
 
 Excel Micro is a browser-based spreadsheet workspace built from scratch as a modern, lightweight alternative for everyday spreadsheet work.
 
-## What works now
+## Current product
 
 - Editable 200 × 52 spreadsheet grid (A–AZ)
 - Mouse selection, shift-selection, drag-selection, arrow-key navigation, Tab, Enter, F2, Delete
 - Formula bar and in-cell editing
 - Formulas and cell references
-  - Arithmetic (`=A1+B1*2`)
-  - Ranges (`=SUM(A1:A10)`)
+  - Arithmetic such as `=A1+B1*2`
+  - Ranges such as `=SUM(A1:A10)`
   - `SUM`, `AVERAGE` / `AVG`, `MIN`, `MAX`, `COUNT`, `IF`
 - Multiple worksheets with add, rename, delete, and tab switching
 - Undo / redo history
@@ -25,8 +25,8 @@ Excel Micro is a browser-based spreadsheet workspace built from scratch as a mod
 - Real `.xlsx` import and export
 - CSV import/export
 - Native Excel Micro JSON backup/restore
-- Local autosave in the browser
-- Responsive Excel-inspired ribbon UI
+- Local browser autosave
+- Excel-inspired responsive ribbon interface
 - Adjustable zoom
 - Selection statistics: average, count, and sum
 
@@ -37,29 +37,52 @@ npm install
 npm run dev
 ```
 
-Then open the local Vite URL printed in the terminal.
-
 ## Production build
 
 ```bash
+npm install
 npm run build
-npm run preview
+npm start
 ```
 
-The production files are emitted to `dist/`.
+The production build is emitted to `dist/`. The included Node static server serves the compiled app and uses the `PORT` environment variable when provided.
 
-## Deploy
+## Railway
 
-Excel Micro is a standard Vite app and can be deployed to Railway, Vercel, Netlify, Cloudflare Pages, GitHub Pages, or any static host. Build command: `npm run build`. Output directory: `dist`.
+The repository includes `railway.json`, so it can be connected directly to Railway.
+
+- Build: `npm install --no-audit --no-fund && npm run build`
+- Start: `npm run start`
+- No application secrets are required for the current local-first release.
+
+## Verification
+
+GitHub Actions runs on every push to `main` and on pull requests. CI installs dependencies, runs the TypeScript/Vite production build, starts the production server, and requests the live app as a smoke test.
 
 ## Architecture
 
 - React + TypeScript
 - Vite
-- SheetJS (`xlsx`) for Excel workbook file compatibility
-- Custom spreadsheet grid, formula engine, selection model, and workbook state
-- Browser `localStorage` for automatic local persistence
+- SheetJS (`xlsx`) for Excel workbook compatibility
+- Custom spreadsheet grid
+- Custom formula engine
+- Custom selection/workbook state
+- Browser `localStorage` persistence
+- Lightweight Node production static server
 
-## Next platform milestones
+## Next milestones
 
-The current repository is the usable core spreadsheet product. Future phases can add collaborative accounts, server-side workbooks, comments, pivot tables, conditional formatting, advanced charts, formula expansion, table objects, freeze panes, row/column resizing, printable page layout, permissions, version history, and real-time multiplayer editing.
+The current repository is the usable spreadsheet core. The next major product phases are:
+
+1. Accounts and cloud workbooks
+2. Real-time collaboration and presence
+3. Version history and comments
+4. Conditional formatting
+5. More Excel-compatible formulas
+6. Row/column resizing, insertion, deletion, hiding, and freeze panes
+7. Table objects, filters, and named ranges
+8. Advanced chart types
+9. Pivot tables
+10. Print/page layout
+11. Permissions and share links
+12. Large-sheet virtualization and worker-based calculations
