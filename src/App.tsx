@@ -2510,6 +2510,36 @@ export default function App() {
     setNotice('Conditional formatting rule added')
   }
 
+  function addConditionalVisual(kind: Exclude<ConditionalFormatKind, 'cell'>) {
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.conditionalFormats ||= []
+      s.conditionalFormats.push({
+        id: crypto.randomUUID(),
+        top: range.top,
+        bottom: range.bottom,
+        left: range.left,
+        right: range.right,
+        operator: 'notBlank',
+        background: kind === 'duplicate' ? '#ffc7ce' : kind === 'unique' ? '#c6efce' : '#ffffff',
+        color: kind === 'duplicate' ? '#9c0006' : kind === 'unique' ? '#006100' : '#202020',
+        kind,
+        dataBarColor: '#63be7b',
+        minColor: '#f8696b',
+        maxColor: '#63be7b',
+      })
+    })
+    setNotice(
+      kind === 'dataBar'
+        ? 'Data bars applied'
+        : kind === 'colorScale'
+          ? 'Color scale applied'
+          : kind === 'duplicate'
+            ? 'Duplicate values highlighted'
+            : 'Unique values highlighted',
+    )
+  }
+
   function removeConditionalFormat(id: string) {
     mutate((next) => {
       const s = activeSheet(next)
