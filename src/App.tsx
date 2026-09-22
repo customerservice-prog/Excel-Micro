@@ -38,6 +38,7 @@ const STORAGE_KEY = 'excel-micro-workbook-v1'
 type Tab = 'Home' | 'Insert' | 'Formulas' | 'Data' | 'View'
 type ContextMenuState = { x: number; y: number; kind: 'cell' | 'row' | 'col'; index: number }
 type FilterEditorState = { col: number; operator: FilterOperator; value: string }
+type ChartType = 'bar' | 'line' | 'pie'
 
 function newWorkbook(): WorkbookData {
   const sheet = createBlankSheet(1)
@@ -190,6 +191,7 @@ export default function App() {
   const [find, setFind] = useState('')
   const [findOpen, setFindOpen] = useState(false)
   const [chartOpen, setChartOpen] = useState(false)
+  const [chartType, setChartType] = useState<ChartType>('bar')
   const [zoom, setZoom] = useState(100)
   const [nameBox, setNameBox] = useState('A1')
   const [saveStatus, setSaveStatus] = useState('Saved')
@@ -1873,7 +1875,9 @@ export default function App() {
             </Group>
 
             <Group name="Visuals">
-              <RibbonButton icon="▥" label="Bar chart" onClick={() => setChartOpen(true)} />
+              <RibbonButton icon="▥" label="Bar chart" onClick={() => { setChartType('bar'); setChartOpen(true) }} />
+              <RibbonButton icon="⌁" label="Line chart" onClick={() => { setChartType('line'); setChartOpen(true) }} />
+              <RibbonButton icon="◔" label="Pie chart" onClick={() => { setChartType('pie'); setChartOpen(true) }} />
             </Group>
 
             <Group name="Worksheets">
@@ -2319,12 +2323,23 @@ export default function App() {
             <div className="chart-title">
               <div>
                 <span className="eyebrow">INSERTED FROM {selectionToAddress(selection)}</span>
-                <h2>Quick bar chart</h2>
+                <h2>Quick {chartType} chart</h2>
                 <p>Select one numeric column, or labels + values in two columns.</p>
               </div>
               <button onClick={() => setChartOpen(false)}>×</button>
             </div>
-            <Chart data={chart} />
+            <div className="chart-switcher">
+              {(['bar', 'line', 'pie'] as ChartType[]).map((type) => (
+                <button
+                  key={type}
+                  className={chartType === type ? 'active' : ''}
+                  onClick={() => setChartType(type)}
+                >
+                  {type === 'bar' ? '▥ Bar' : type === 'line' ? '⌁ Line' : '◔ Pie'}
+                </button>
+              ))}
+            </div>
+            <Chart data={chart} type={chartType} />
           </div>
         </div>
       )}
@@ -2686,9 +2701,110 @@ function RibbonButton({
   )
 }
 
-function Chart({ data }: { data: { label: string; value: number }[] }) {
+function Chart({
+  data,
+  type,
+}: {
+  data: { label: string; value: number }[]
+  type: ChartType
+}) {
   if (!data.length) {
     return <div className="chart-empty">Select numeric cells to chart.</div>
+  }
+
+  if (type === 'line') {
+    const width = 760
+    const height = 300
+    const padX = 48
+    const padTop = 25
+    const padBottom = 48
+    const values = data.map((item) => item.value)
+    const min = Math.min(0, ...values)
+    const max = Math.max(0, ...values)
+    const span = Math.max(1, max - min)
+    const xStep = data.length > 1 ? (width - padX * 2) / (data.length - 1) : 0
+    const toY = (value: number) =>
+      padTop + (max - value) / span * (height - padTop - padBottom)
+    const points = data
+      .map((item, index) => `${padX + index * xStep},${toY(item.value)}`)
+      .join(' ')
+    const zeroY = toY(0)
+
+    return (
+      <div className="line-chart-wrap">
+        <svg className="line-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Line chart">
+          <line x1={padX} y1={zeroY} x2={width - padX} y2={zeroY} className="chart-axis" />
+          {[0, 0.25, 0.5, 0.75, 1].map((fraction) => {
+            const y = padTop + fraction * (height - padTop - padBottom)
+            return <line key={fraction} x1={padX} y1={y} x2={width - padX} y2={y} className="chart-gridline" />
+          })}
+          <polyline points={points} className="chart-line" fill="none" />
+          {data.map((item, index) => {
+            const x = padX + index * xStep
+            const y = toY(item.value)
+            return (
+              <g key={index}>
+                <circle cx={x} cy={y} r="4.5" className="chart-point" />
+                <text x={x} y={Math.max(12, y - 10)} className="chart-point-value" textAnchor="middle">
+                  {item.value.toLocaleString()}
+                </text>
+                <text x={x} y={height - 18} className="chart-x-label" textAnchor="middle">
+                  {item.label.slice(0, 10)}
+                </text>
+              </g>
+            )
+          })}
+        </svg>
+      </div>
+    )
+  }
+
+  if (type === 'pie') {
+    const positive = data
+      .map((item) => ({ ...item, magnitude: Math.abs(item.value) }))
+      .filter((item) => item.magnitude > 0)
+    const total = positive.reduce((sum, item) => sum + item.magnitude, 0)
+
+    if (!total) {
+      return <div className="chart-empty">Pie charts need at least one non-zero value.</div>
+    }
+
+    let cursor = 0
+    const segments = positive.map((item, index) => {
+      const start = cursor
+      const end = cursor + item.magnitude / total * 100
+      cursor = end
+      return {
+        ...item,
+        start,
+        end,
+        color: `hsl(${(index * 67 + 142) % 360} 55% 44%)`,
+      }
+    })
+    const gradient = segments
+      .map((segment) => `${segment.color} ${segment.start}% ${segment.end}%`)
+      .join(', ')
+
+    return (
+      <div className="pie-chart-wrap">
+        <div className="pie-chart" style={{ background: `conic-gradient(${gradient})` }}>
+          <div className="pie-hole">
+            <strong>{total.toLocaleString()}</strong>
+            <span>Total</span>
+          </div>
+        </div>
+        <div className="pie-legend">
+          {segments.map((segment, index) => (
+            <div className="pie-legend-item" key={index}>
+              <span className="pie-dot" style={{ background: segment.color }} />
+              <span className="pie-label">{segment.label}</span>
+              <strong>{segment.value.toLocaleString()}</strong>
+              <span className="pie-percent">{((segment.magnitude / total) * 100).toFixed(1)}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   const max = Math.max(...data.map((item) => Math.abs(item.value)), 1)
