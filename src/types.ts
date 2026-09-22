@@ -1,5 +1,5 @@
 export type Align = 'left' | 'center' | 'right'
-export type NumberFormat = 'general' | 'number' | 'currency' | 'percent'
+export type NumberFormat = 'general' | 'number' | 'currency' | 'accounting' | 'percent' | 'date' | 'time' | 'datetime' | 'scientific' | 'fraction'
 
 export interface CellFormat {
   bold?: boolean
