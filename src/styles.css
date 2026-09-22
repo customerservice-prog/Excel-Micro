@@ -692,6 +692,49 @@ body.is-row-resizing * {
   display: none;
 }
 
+.cell-validation-button {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  z-index: 6;
+  width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 3px;
+  padding: 0;
+  background: transparent;
+  color: #777;
+  font-size: 8px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.cell:hover .cell-validation-button,
+.cell.active .cell-validation-button {
+  opacity: 1;
+  background: rgba(244, 244, 244, 0.95);
+}
+
+.cell-validation-button:hover {
+  background: #e4f2e9 !important;
+  color: var(--excel-dark);
+}
+
+.cell-validation-button.with-filter {
+  right: 23px;
+}
+
+.validation-cell > span {
+  padding-right: 18px;
+}
+
+.validation-cell:has(.cell-validation-button.with-filter) > span {
+  padding-right: 38px;
+}
+
 .cell-filter-button {
   position: absolute;
   right: 2px;
@@ -971,6 +1014,94 @@ body.is-row-resizing * {
 
 .panel-overlay {
   z-index: 240;
+}
+
+.validation-card {
+  width: min(560px, 96vw);
+}
+
+.validation-form {
+  display: grid;
+  gap: 16px;
+  padding: 20px 22px;
+}
+
+.validation-form > label {
+  display: grid;
+  gap: 7px;
+  color: #555;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.validation-form textarea {
+  min-height: 150px;
+  resize: vertical;
+  border: 1px solid #c9c9c9;
+  border-radius: 6px;
+  padding: 10px;
+  outline: none;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.validation-form textarea:focus {
+  border-color: var(--excel);
+  box-shadow: 0 0 0 2px rgba(16, 124, 65, 0.12);
+}
+
+.validation-form label > span {
+  color: #888;
+  font-size: 9px;
+  font-weight: 400;
+}
+
+.validation-checkbox {
+  grid-template-columns: auto 1fr !important;
+  align-items: center;
+  justify-content: start;
+}
+
+.validation-checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--excel);
+}
+
+.validation-picker {
+  position: fixed;
+  z-index: 280;
+  width: 180px;
+  max-height: 220px;
+  overflow: auto;
+  padding: 5px;
+  border: 1px solid #cfcfcf;
+  border-radius: 6px;
+  background: white;
+  box-shadow:
+    0 12px 34px rgba(0, 0, 0, 0.18),
+    0 2px 7px rgba(0, 0, 0, 0.08);
+}
+
+.validation-picker button {
+  width: 100%;
+  min-height: 30px;
+  border: 0;
+  border-radius: 4px;
+  padding: 6px 9px;
+  background: transparent;
+  color: #252525;
+  text-align: left;
+  cursor: pointer;
+}
+
+.validation-picker button:hover {
+  background: #edf6f1;
+  color: var(--excel-dark);
+}
+
+.validation-blank {
+  color: #888;
+  font-style: italic;
 }
 
 .rule-card {
