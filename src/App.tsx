@@ -641,6 +641,31 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    const node = gridRef.current
+    if (!node) return
+
+    const update = () => {
+      setViewport((current) => ({
+        ...current,
+        scrollTop: node.scrollTop,
+        scrollLeft: node.scrollLeft,
+        width: node.clientWidth || current.width,
+        height: node.clientHeight || current.height,
+      }))
+    }
+
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(node)
+    window.addEventListener('resize', update)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', update)
+    }
+  }, [])
+
+  useEffect(() => {
     const onMove = (event: MouseEvent) => {
       const columnResize = columnResizeRef.current
       const rowResize = rowResizeRef.current
