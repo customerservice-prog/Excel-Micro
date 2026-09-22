@@ -3549,6 +3549,16 @@ export default function App() {
           ref={gridRef}
           tabIndex={0}
           onKeyDown={onGridKey}
+          onScroll={(e) => {
+            const node = e.currentTarget
+            setViewport((current) => ({
+              ...current,
+              scrollTop: node.scrollTop,
+              scrollLeft: node.scrollLeft,
+              width: node.clientWidth,
+              height: node.clientHeight,
+            }))
+          }}
         >
           <div className="sheet-grid" style={gridStyle}>
             <div
@@ -3564,7 +3574,7 @@ export default function App() {
               }}
             />
 
-            {Array.from({ length: COLS }, (_, col) => (
+            {visibleColumns.map((col) => (
               <div
                 key={'h' + col}
                 className={
@@ -3596,7 +3606,7 @@ export default function App() {
               </div>
             ))}
 
-            {Array.from({ length: ROWS }, (_, row) => (
+            {visibleRows.map((row) => (
               <div className={'grid-row ' + (hiddenRows.has(row) || sheet.hiddenRows?.[String(row)] ? 'filtered-out' : '')} key={'r' + row}>
                 <div
                   className={
@@ -3627,7 +3637,7 @@ export default function App() {
                   />
                 </div>
 
-                {Array.from({ length: COLS }, (_, col) => {
+                {visibleColumns.map((col) => {
                   const data = getCell(sheet, row, col)
                   const active = point.row === row && point.col === col
                   const selected =
