@@ -115,6 +115,7 @@ export function createBlankSheet(index = 1): SheetData {
     id: crypto.randomUUID(),
     name: `Sheet${index}`,
     cells: {},
+    hidden: false,
     columnWidths: {},
     rowHeights: {},
     showGridlines: true,
