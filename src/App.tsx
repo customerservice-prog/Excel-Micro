@@ -1102,6 +1102,42 @@ export default function App() {
     })
   }
 
+  function replaceMatch(replaceAll = false) {
+    const term = find.trim()
+    if (!term) return
+
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\  function findNext() {')
+    const pattern = new RegExp(escaped, 'gi')
+    let replaced = 0
+
+    mutate((next) => {
+      const s = activeSheet(next)
+
+      Object.entries(s.cells).forEach(([key, data]) => {
+        if (!replaceAll) {
+          const [row, col] = key.split(':').map(Number)
+          if (row !== point.row || col !== point.col) return
+        }
+
+        if (!data.value || !pattern.test(data.value)) {
+          pattern.lastIndex = 0
+          return
+        }
+
+        pattern.lastIndex = 0
+        s.cells[key] = { ...data, value: data.value.replace(pattern, replaceText) }
+        replaced += 1
+      })
+    })
+
+    if (!replaceAll && replaced === 0) {
+      findNext()
+      setNotice('Moved to the next match')
+    } else {
+      setNotice(replaced ? 'Replaced ' + replaced + ' cell' + (replaced === 1 ? '' : 's') : 'No matches found')
+    }
+  }
+
   function findNext() {
     const term = find.trim().toLowerCase()
     if (!term) return
