@@ -1599,6 +1599,40 @@ export default function App() {
     setNotice('Shape inserted')
   }
 
+  function insertCurrentChart() {
+    const selected = normalizeSelection(selection)
+    const data = chartDataForRange(sheet, selected, book.sheets)
+    if (!data.length) {
+      setNotice('Select numeric data before inserting a chart')
+      return
+    }
+
+    const anchorCol = Math.min(COLS - 1, selected.right + 1)
+    mutate((next) => {
+      const s = activeSheet(next)
+      s.objects ||= []
+      s.objects.push({
+        id: crypto.randomUUID(),
+        type: 'chart',
+        row: selected.top,
+        col: anchorCol,
+        width: 420,
+        height: 260,
+        chartType,
+        chartRange: {
+          top: selected.top,
+          bottom: selected.bottom,
+          left: selected.left,
+          right: selected.right,
+        },
+        fill: '#ffffff',
+        border: '#cfcfcf',
+      })
+    })
+    setChartOpen(false)
+    setNotice('Chart added to worksheet')
+  }
+
   function removeSheetObject(id: string) {
     mutate((next) => {
       const s = activeSheet(next)
@@ -1609,7 +1643,7 @@ export default function App() {
 
   function editSheetObject(id: string) {
     const object = (sheet.objects || []).find((item) => item.id === id)
-    if (!object || object.type === 'image') return
+    if (!object || object.type === 'image' || object.type === 'chart') return
     const text = window.prompt('Edit object text', object.text || '')
     if (text === null) return
     mutate((next) => {
