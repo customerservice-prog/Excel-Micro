@@ -2,13 +2,13 @@
 
 Excel Micro is a browser-based spreadsheet workspace built from scratch as a modern, lightweight Excel-style application.
 
-## Excel Micro 0.8
+## Excel Micro 0.9
 
 The current release is a real working spreadsheet core, not a static spreadsheet mockup.
 
 ### Spreadsheet workspace
 
-- 200 × 52 editable sheet grid (A–AZ)
+- Virtualized 10,000 × 200 editable sheet grid
 - Click, drag, and Shift-select ranges
 - Click row headers to select complete rows
 - Click column headers to select complete columns
@@ -66,6 +66,19 @@ Supported examples include:
 =INDEX(Names,3)
 =IFERROR(A1/B1,0)
 =TEXTJOIN(", ",TRUE,A2:A10)
+=SUMIFS(Amount,Status,"Paid",Region,"East")
+=COUNTIFS(Status,"Paid",Amount,">100")
+=AVERAGEIFS(Amount,Status,"Paid")
+=XMATCH(A2,IDs)
+=Sheet2!A1
+=SUM(Sheet2!A1:A10)
+='2026 Sales'!B4
+=TODAY()
+=DATE(2026,9,22)
+=EDATE(A1,1)
+=PMT(0.06/12,60,25000)
+=SUMPRODUCT(A2:A10,B2:B10)
+=STDEV.S(A2:A100)
 ```
 
 Nested formulas, comparisons, percentages, ranges, strings, booleans, arithmetic operators, exponentiation, and text concatenation are supported.
@@ -119,6 +132,9 @@ Nested formulas, comparisons, percentages, ranges, strings, booleans, arithmetic
 - Freeze top row
 - Freeze first column
 - Freeze both together
+- Hide / unhide rows and columns
+- 10,000-row × 200-column virtualized worksheet window
+- Active-cell auto-scroll through virtualized regions
 
 ### Worksheets
 
@@ -127,6 +143,7 @@ Nested formulas, comparisons, percentages, ranges, strings, booleans, arithmetic
 - Rename worksheet
 - Duplicate worksheet
 - Delete worksheet
+- Hide / unhide worksheets
 - Sheet tabs
 - Local workbook persistence
 - Undo / redo history
@@ -151,6 +168,10 @@ Right-click directly where you are working:
 - Multi-cell paste
 - Quick bar, line, and pie charts
 - Switch chart type without rebuilding the selection
+- Persistent worksheet chart objects linked to source ranges
+- Remove Duplicates
+- Text to Columns using comma, tab, or semicolon delimiters
+- Find & Replace / Replace All
 
 ### Structured tables
 
@@ -174,6 +195,10 @@ Right-click directly where you are working:
 - Custom fill and text colors
 - Multiple saved rules per sheet
 - Remove individual rules or clear all
+- Data bars
+- Color scales
+- Duplicate-value highlighting
+- Unique-value highlighting
 
 ### Named ranges
 
@@ -183,14 +208,18 @@ Right-click directly where you are working:
 - Named ranges shift automatically with row/column insertion and deletion
 - Manage and remove names from the workbook UI
 
-### Data validation and dropdown cells
+### Data validation
 
-- Apply dropdown validation to any selected range
-- Define allowed values with one item per line or comma-separated
+- List / dropdown validation
+- Whole-number and decimal rules
+- Date validation
+- Text-length rules
+- Between / equal / greater-than / less-than conditions
+- Input titles and input messages
+- Stop / Warning / Information error behavior
 - Optional blank values
-- In-cell dropdown picker
-- Invalid manually typed values are rejected
-- Invalid pasted values are rejected without overwriting valid cells
+- In-cell dropdown picker for list rules
+- Typed and pasted data are validated
 - Validation ranges shift with inserted/deleted rows and columns
 - Clear validation from the selected range
 
@@ -228,7 +257,20 @@ Right-click directly where you are working:
 - Normal / Narrow / Wide margins
 - Print gridlines on/off
 - Print the active sheet's used range with workbook/sheet title
+- Set / clear Print Area
+- 50%–200% print scaling
+- Custom print header and footer text
 - Table and conditional formatting are reflected in the print surface
+
+### Insert tools and worksheet objects
+
+- Hyperlinks stored per cell
+- In-cell checkboxes backed by TRUE / FALSE values
+- Images stored with the local workbook
+- Text boxes
+- Basic shapes
+- Persistent bar / line / pie chart objects
+- Worksheet objects move with row/column structural edits
 
 ### File compatibility
 
@@ -313,6 +355,6 @@ GitHub Actions runs on every push to `main` and on pull requests. CI:
 
 ## Excel parity status
 
-Excel Micro 0.8 is substantially more capable, but it is **not full Microsoft Excel parity**. The repository now includes an explicit `EXCEL_PARITY.md` roadmap that tracks what is built, partial, and still missing.
+Excel Micro 0.9 is substantially more capable, but it is **not full Microsoft Excel parity**. The repository now includes an explicit `EXCEL_PARITY.md` roadmap that tracks what is built, partial, and still missing.
 
-The largest remaining layers include cloud accounts and collaboration, dynamic-array formulas, much broader Excel formula compatibility, advanced PivotTables, more chart families, merge cells and borders, images/shapes, hyperlinks, macros/scripts, Power Query-style data transformation, external data connections, advanced protection, accessibility refinements, and large-sheet virtualization.
+The largest remaining layers include cloud accounts and real-time collaboration, dynamic-array formulas, deeper Excel formula/error compatibility, advanced PivotTables, more chart families, threaded comments, VBA/macros or scripts, Power Query-style transformation, external data connections, password/granular protection, accessibility parity, and Excel-scale worksheet limits.
